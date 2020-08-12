@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="3bbdafa3-cd40-4f7f-88e3-cf89e307d60b" name="Default Changelist" comment="" />
+    <list default="true" id="3bbdafa3-cd40-4f7f-88e3-cf89e307d60b" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/environment.yml" beforeDir="false" afterPath="$PROJECT_DIR$/environment.yml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -14,7 +18,11 @@
       </list>
     </option>
   </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
   <component name="ProjectId" id="1fxyTjyW5llm2YyKFXcMpf95jZb" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showExcludedFiles" value="true" />
@@ -22,6 +30,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -37,6 +46,10 @@
     <servers />
   </component>
   <component name="WindowStateProjectService">
+    <state x="333" y="519" key="com.intellij.ide.util.TipDialog" timestamp="1597217215450">
+      <screen x="0" y="23" width="2560" height="1329" />
+    </state>
+    <state x="333" y="519" key="com.intellij.ide.util.TipDialog/0.23.2560.1329@0.23.2560.1329" timestamp="1597217215450" />
     <state x="239" y="275" width="782" height="825" key="find.popup" timestamp="1597174436742">
       <screen x="0" y="23" width="2560" height="1329" />
     </state>

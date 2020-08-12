@@ -1,12 +1,10 @@
-name: routing
+name: model_analyzer
 channels:
-  - conda-forge
   - gurobi
 dependencies:
+  - bzip2
+  - collections
+  - datetime
   - gurobi
-  - plotly
-  - pip
-  - pip:
-    - streamlit
-  - xlrd
-
+  - gzip
+  - hashlib
