@@ -102,6 +102,8 @@ def get_variable_bounds(m, data, basis):
 def get_obj_c_frequencies(model, basis):
     int_count = defaultdict(int)
     cont_count = defaultdict(int)
+    int_result = []
+    cont_result = []
 
     for x in model.getVars():
         if x.Obj != 0:
@@ -110,7 +112,10 @@ def get_obj_c_frequencies(model, basis):
             else:
                 int_count[int(math.floor(math.log(abs(x.Obj), basis)))] += 1
 
-    cont_result = [ [exponent, cont_count[exponent]] for exponent in range(min(cont_count.keys()), max(cont_count.keys()) + 1) ]
-    int_result = [ [exponent, int_count[exponent]] for exponent in range(min(int_count.keys()), max(int_count.keys()) + 1) ]
+    if len(cont_count) > 0:
+        cont_result = [ [exponent, cont_count[exponent]] for exponent in range(min(cont_count.keys()), max(cont_count.keys()) + 1) ]
+
+    if len(int_count) > 0:
+        int_result = [ [exponent, int_count[exponent]] for exponent in range(min(int_count.keys()), max(int_count.keys()) + 1) ]
 
     return cont_result, int_result
