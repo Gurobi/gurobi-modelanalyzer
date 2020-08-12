@@ -3,6 +3,13 @@ from collections import defaultdict
 import math
 
 
+def get_vtype(var):
+    if var.VType == gp.GRB.INTEGER and var.LB >= 0 and var.UB <= 1:
+        return gp.GRB.BINARY
+    else:
+        return var.VType
+
+
 def max_value(variable, coefficient):
     """
     Calculates the maximum attainable value for a variable. Either the upper bound or infinity.
@@ -42,7 +49,7 @@ def utc_date_formatted(dt):
     weekday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][dt.weekday()]
     month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
              "Oct", "Nov", "Dec"][dt.month - 1]
-    return f"{weekday}, {dt.day:02d} {month} {dt.year:04d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:‰02d} GMT"
+    return f"{weekday}, {dt.day:02d} {month} {dt.year:04d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d} GMT"
 
 
 def count_decimal_digits(number):

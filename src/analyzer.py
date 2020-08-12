@@ -84,7 +84,7 @@ def run(model_file: str):
     # Write matrix plot image and put final dimensions into data
     #write_matrix_plot(m, 1920, 1080, args.outputprefix + ".png", data)
 
-    return 0
+    return data
 
 
 def process_model_type(m, data):
