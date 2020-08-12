@@ -1,6 +1,6 @@
 import gurobipy as gp
 
-import common
+import model_analyzer.common as common
 
 
 def process_variable_types(m, data, objective_variables, constraint_variables):

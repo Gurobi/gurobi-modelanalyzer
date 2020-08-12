@@ -2,7 +2,7 @@ from collections import defaultdict
 import gurobipy as gp
 import math
 
-import common
+import model_analyzer.common as common
 
 
 def get_rhs_frequencies(model, basis):

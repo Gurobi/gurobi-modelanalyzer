@@ -1,7 +1,7 @@
 from collections import defaultdict
 import gurobipy as gp
 
-import common
+import model_analyzer.common as common
 
 
 def process_objective(m, data):

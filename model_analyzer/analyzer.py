@@ -6,11 +6,11 @@ import os
 import sys
 from timeit import default_timer
 
-import common
-import constraint_analyzer
-import file_analyzer
-import objective_function_analyzer
-import variable_analyzer
+import model_analyzer.common as common
+import model_analyzer.constraint_analyzer as constraint_analyzer
+import model_analyzer.file_analyzer as file_analyzer
+import model_analyzer.objective_function_analyzer as objective_function_analyzer
+import model_analyzer.variable_analyzer as variable_analyzer
 
 
 def run(model_file: str):
