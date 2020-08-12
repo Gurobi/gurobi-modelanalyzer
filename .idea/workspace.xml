@@ -2,21 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3bbdafa3-cd40-4f7f-88e3-cf89e307d60b" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/tests/test_analyzer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.idea/src.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/analyzer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/common.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/constraint_analyzer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/file_analyzer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/objective_function_analyzer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/variable_analyzer.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_analyzer.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_analyzer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,6 +46,10 @@
     <servers />
   </component>
   <component name="WindowStateProjectService">
+    <state x="104" y="349" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1597221706635">
+      <screen x="0" y="23" width="2560" height="1329" />
+    </state>
+    <state x="104" y="349" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.23.2560.1329@0.23.2560.1329" timestamp="1597221706634" />
     <state x="333" y="519" key="com.intellij.ide.util.TipDialog" timestamp="1597217215450">
       <screen x="0" y="23" width="2560" height="1329" />
     </state>
@@ -67,5 +58,16 @@
       <screen x="0" y="23" width="2560" height="1329" />
     </state>
     <state x="239" y="275" width="782" height="825" key="find.popup/0.23.2560.1329@0.23.2560.1329" timestamp="1597174436742" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tests/test_analyzer.py</url>
+          <line>14</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
