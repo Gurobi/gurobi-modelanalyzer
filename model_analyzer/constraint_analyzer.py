@@ -103,8 +103,6 @@ def process_bounds(model, data):
 def process_coefficients(model, data):
     print("Processing coefficients...")
 
-    data["numNZs"] = int(model.DNumNZs)
-
     top_ranges = []
     top_x = 10
 
@@ -133,10 +131,6 @@ def process_constraints(model, data):
     constraint_variables = set()
     redundant_constraints = []
     infeasible_constraints = []
-
-    data["numLinConstrs"] = model.NumConstrs
-    data["numQuadConstrs"] = model.NumQConstrs
-    data["numSOSConstrs"] = model.NumSOS
 
     # Equality constraint
     counter_equality = 0

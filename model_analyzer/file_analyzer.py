@@ -42,7 +42,7 @@ def process_mps_details(modelfile, data):
 
     blocks_ignored = {"OBJSENSE"}
 
-    line_counter = 0;
+    line_counter = 0
     result = defaultdict(list)
 
     with open(modelfile) as mpsfile:
@@ -51,7 +51,7 @@ def process_mps_details(modelfile, data):
             if line[0] == ' ': continue
             statement = line[:10].upper().rstrip("\n").split(" ")[0].strip()
             if len(statement) > 0:
-                result[statement].append(line_counter);
+                result[statement].append(line_counter)
 
     sections = {}
     other_sections = []
@@ -67,8 +67,8 @@ def process_mps_details(modelfile, data):
             other_sections.append(section)
 
     data["fileLines"] = line_counter
-    data["mpsSections"] = sections;
-    data["mpsOtherSections"] = other_sections;
+    data["mpsSections"] = sections
+    data["mpsOtherSections"] = other_sections
 
 
 def process_lp_details(modelfile, data):
@@ -88,7 +88,7 @@ def process_lp_details(modelfile, data):
               ["End"]];
 
     max_length = max([len(keyword) for block in blocks for keyword in block]) + 1
-    line_counter = 0;
+    line_counter = 0
 
     result = [False for i in range(len(blocks))]
 

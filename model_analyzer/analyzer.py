@@ -13,7 +13,7 @@ import model_analyzer.objective_function_analyzer as objective_function_analyzer
 import model_analyzer.variable_analyzer as variable_analyzer
 
 
-def run(model_file: str):
+def run(model_file: str, analyzers):
     # Uncompress model file if compressed
     fileType, compression = file_analyzer.get_file_type(model_file)
 
@@ -74,12 +74,23 @@ def run(model_file: str):
         data["readerSuccess"] = True
 
     process_model_type(m, data)
-    objective_variables = objective_function_analyzer.process_objective(m, data)
-    constraint_variables = constraint_analyzer.process_constraints(m, data)
-    variable_analyzer.process_variable_types(m, data, objective_variables, constraint_variables)
-    constraint_analyzer.process_bounds(m, data)
-    constraint_analyzer.process_coefficients(m, data)
-    constraint_analyzer.process_rhs(m, data)
+    if "objective" in analyzers:
+        objective_variables = objective_function_analyzer.process_objective(m, data)
+
+    if "constraint" in analyzers:
+        constraint_variables = constraint_analyzer.process_constraints(m, data)
+
+    if "variable" in analyzers:
+        variable_analyzer.process_variable_types(m, data, objective_variables, constraint_variables)
+
+    if "bounds" in analyzers:
+        constraint_analyzer.process_bounds(m, data)
+
+    if "coefficients" in analyzers:
+        constraint_analyzer.process_coefficients(m, data)
+
+    if "rhs" in analyzers:
+        constraint_analyzer.process_rhs(m, data)
 
     # Write matrix plot image and put final dimensions into data
     #write_matrix_plot(m, 1920, 1080, args.outputprefix + ".png", data)

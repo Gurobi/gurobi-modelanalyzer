@@ -1,16 +1,19 @@
 package:
   name: model_analyzer
-  version: "0.0.1"
+  version: "0.0.3"
 
 build:
   noarch: python
-  
+
 requirements:
   build:
-    - python
-    - setuptools
+    - python=3.7
 
   run:
-    - python
+    - python=3.7
     - bzip2
     - gurobi
+
+test:
+  imports:
+    - model_analyzer

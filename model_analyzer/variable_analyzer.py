@@ -56,8 +56,6 @@ def process_variable_types(m, data, objective_variables, constraint_variables):
     for btype, count in variable_boundcount.items():
         data["num%sVars" % btype] = count
 
-    data["numVars"] = m.NumVars
-
     # Check for redundant variables (not in objective, not in any constraint)
     redundant_vars = list(set(m.getVars()).difference(objective_variables, constraint_variables))
     data["numRedundantVars"] = len(redundant_vars)
