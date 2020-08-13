@@ -2,16 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3bbdafa3-cd40-4f7f-88e3-cf89e307d60b" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/model_analyzer/basic_analyzer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.sh" beforeDir="false" afterPath="$PROJECT_DIR$/build.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/meta.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/meta.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_analyzer-0.0.1-py_0.tar.bz2" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/model_analyzer/analyzer.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_analyzer/analyzer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_analyzer/constraint_analyzer.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_analyzer/constraint_analyzer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_analyzer/file_analyzer.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_analyzer/file_analyzer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_analyzer/variable_analyzer.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_analyzer/variable_analyzer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

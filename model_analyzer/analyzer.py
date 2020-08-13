@@ -13,7 +13,7 @@ import model_analyzer.objective_function_analyzer as objective_function_analyzer
 import model_analyzer.variable_analyzer as variable_analyzer
 
 
-def run(model_file: str, analyzers):
+def run(model_file: str, analyzers=[]):
     # Uncompress model file if compressed
     fileType, compression = file_analyzer.get_file_type(model_file)
 
