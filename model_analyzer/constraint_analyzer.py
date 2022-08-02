@@ -2,28 +2,24 @@ from collections import defaultdict
 import gurobipy as gp
 import math
 
-import model_analyzer.common as common
+#import model_analyzer.common as common
+import common as common
 
-
-def get_rhs_frequencies(model, basis):
+def get_rhs_frequencies(model, base=10):
     rhs_count = defaultdict(int)
-    min_exponent = float("inf")
-    max_exponent = -float("inf")
+    rhs_vals  = []
+    result    = []
 
     for constr in model.getConstrs():
         if constr.RHS != 0:
-            exponent = int(math.floor(math.log(abs(constr.RHS), basis)))
-            rhs_count[exponent] += 1
-            if exponent < min_exponent: min_exponent = exponent
-            if exponent > max_exponent: max_exponent = exponent
-
-    if min_exponent == float("inf"):
-        return []
-    else:
-        return [[exponent, rhs_count[exponent]] for exponent in range(min_exponent, max_exponent + 1)]
+            rhs_vals.append(constr.RHS)
+            
+    result = common.get_vector_frequencies(rhs_vals, base)
+            
+    return result
 
 
-def get_a_frequencies(model, basis, topx):
+def get_a_frequencies(model, base, topx):
     int_coeff_count = defaultdict(int)
     cont_coeff_count = defaultdict(int)
     range_count = defaultdict(int)
@@ -42,7 +38,7 @@ def get_a_frequencies(model, basis, topx):
             coeff = row.getCoeff(i)
             if coeff != 0:
 
-                exponent = int(math.floor(math.log(abs(coeff), basis)))
+                exponent = int(math.floor(math.log(abs(coeff), base)))
 
                 if row.getVar(i).VType == 'C':
                     cont_coeff_count[exponent] += 1
@@ -125,8 +121,8 @@ def process_rhs(model, data):
         data["rhsExponentsLog" + str(i)] = get_rhs_frequencies(model, i)
 
 
-def process_constraints(model, data):
-    print("Processing model constraints...")
+def process_linear_constraints(model, data):
+    print("Processing model linear constraints...")
 
     constraint_variables = set()
     redundant_constraints = []
@@ -328,28 +324,6 @@ def process_constraints(model, data):
                     (is_row_all_positive and rhs > 0) or (is_row_all_negative and rhs < 0)) and is_rhs_integer:
                 counter_int_knapsack += 1
 
-    # Loop through all quadratic constraints
-    for qconstraint in model.getQConstrs():
-
-        qcrow = model.getQCRow(qconstraint)
-        row = qcrow.getLinExpr()
-
-        # Loop quadratic terms
-        for i in range(qcrow.size()):
-            if qcrow.getCoeff(i) != 0:
-                constraint_variables.add(qcrow.getVar1(i))
-                constraint_variables.add(qcrow.getVar2(i))
-
-        # Loop linear terms
-        for i in range(row.size()):
-            coeff = row.getCoeff(i)
-            if coeff != 0:
-                constraint_variables.add(row.getVar(i))
-
-        if qconstraint.Sense == gp.GRB.EQUAL:
-            counter_equality += 1
-        else:
-            counter_inequality += 1
 
     # TOP 5 redundant constraints
     redundant_constraints = (sorted(redundant_constraints, key=lambda constraint: model.getRow(constraint).size()))[:5]
@@ -385,3 +359,236 @@ def process_constraints(model, data):
     data["numIntKnapsackConstrs"] = counter_int_knapsack
 
     return constraint_variables
+
+
+
+def process_quadratic_constraints(model, data):
+#
+#   TODO: identify infeasible and redundant QCs.    
+#   Not sure worth doing for QCs, but what about semi cont. and
+#   semi int variables?
+#
+
+    print("Processing model quadratic constraints...")
+
+    quadpart_variables = set()
+    linpart_variables  = set()
+    
+    redundant_constraints = []
+    infeasible_constraints = []
+
+    # Equality constraint
+    counter_equality = 0
+
+    # Inequality constraint
+    counter_inequality = 0
+
+    # Empty constraint
+    counter_empty = 0
+
+    # Bound constraint
+    counter_bound = 0
+
+    # Integer and continuous variables
+    if model.NumIntVars + model.NumBinVars >= 1:
+        counter_mixed = 0
+    else:
+        counter_mixed = -1
+
+    # Only (>= 2) continuous variables
+    
+    if model.NumVars - model.NumIntVars - model.NumBinVars >= 2:
+        counter_cont_only = 0
+    else:
+        counter_cont_only = -1   # Can't have bilinear terms with 2 cont. vars
+
+    # Only (>= 2) binary variables
+    if model.NumBinVars >= 2:
+        counter_bin_only = 0
+    else:
+        counter_bin_only = -1      # Can't have any binary bilinear terms
+            
+    
+    # Only (>= 2) integer variables (including binaries)
+    if model.NumIntVars >= 1:
+        counter_int_only = 0
+    else:
+        counter_int_only = -1      # Can't have any integer bilinear terms  
+
+    # No linear terms in the QC (bot not totally empty)
+
+    counter_quad_only = 0
+
+    # Empty quadratic part; should have made it a linear constraint
+
+    counter_lin_only = 0
+
+    # At least one binary in every quadratic term of the QC
+
+    if model.NumBinVars >= 1:
+        counter_common_bin = 0
+    else:
+        counter_common_bin = -1
+
+    # Anything else regarding QC term composition
+
+    counter_other = 0
+
+    # Loop through all quadratic constraints
+
+    BIN_ONLY  = 1
+    INT_ONLY  = 2
+    CONT_ONLY = 4
+    MIXED     = 8
+    for qconstraint in model.getQConstrs():
+
+        qcrow    = model.getQCRow(qconstraint)
+        row      = qcrow.getLinExpr()
+        qlen     = qcrow.size()
+        linlen   = row.size()
+        bittype  = 0
+        qclhs_lb = row.getConstant()
+        qclhs_ub = row.getConstant()
+
+        # Loop quadratic terms
+        
+        if qlen == 1:     #  Check for QC singleton that is a simple bound
+            if qcrow.getCoeff(0) != 0:
+                v1 = qcrow.getVar1(0)
+                v2 = qcrow.getVar2(0)
+                if v1.VarName == v2.VarName and linlen == 0:
+                    counter_bound += 1
+                if v1.vType == gp.GRB.BINARY:                    
+                    counter_common_bin += 1
+                    if v2.vType == gp.GRB.BINARY:
+                        bittype != BIN_ONLY
+                    else:
+                        bittype != MIXED
+                elif v2.vType == gp.GRB.BINARY:
+                    counter_common_bin += 1
+                    bittype != MIXED
+                else:       # QC singleton of two continuous variables
+                    bittype != CONT_ONLY
+            elif linlen == 0:    
+                counter_empty += 1
+            else:      #  Empty quad part with nonempty linear part
+                counter_lin_only += 1
+        else:      # Multiple QC terms; count all pairwise combos
+            binvardict = defaultdict(int)      # for common binary factors
+            for j in range(qlen):
+                if qcrow.getCoeff(j) != 0:
+                    v1 = qcrow.getVar1(j)
+                    v2 = qcrow.getVar2(j)
+                    quadpart_variables.add(v1)
+                    quadpart_variables.add(v2)
+                    if counter_cont_only >= 0:
+                        if v1.Vtype == gp.GRB.CONTINUOUS:
+                            if v2.VType == gp.GRB.CONTINUOUS:
+                                bittype |= CONT_ONLY
+                            else:
+                                bittype |= MIXED
+                                if v2.Vtype == gp.GRB.BINARY:
+                                    binvardict[v2.VarName] += 1
+                            continue
+                        elif v2.Vtype == gp.GRB.CONTINUOUS:
+                            bittype |= MIXED
+                            if v2.Vtype == gp.GRB.BINARY:
+                                binvardict[v2.VarName] += 1
+                            continue
+                    if counter_bin_only >= 0:
+                        if v1.Vtype == gp.GRB.BINARY and \
+                           v2.VType == gp.GRB.BINARY:
+                            bittype |= BIN_ONLY
+                            binvardict[v1.VarName] += 1
+                            if v1.VarName != v2.VarName:
+                                binvardict[v1.VarName] += 1
+                            continue
+                    if counter_int_only >= 0:
+                        if v1.Vtype == gp.GRB.INTEGER and \
+                           v2.VType == gp.GRB.INTEGER:
+                            bittype |= INT_ONLY
+                            continue
+            if len(binvardict) == qlen:
+                counter_common_bin += 1
+            
+        # Finished processing this QC; update the counts of the different
+        # types of bilinear terms
+
+        if bittype == BIN_ONLY:
+            counter_bin_only += 1
+        elif bittype == INT_ONLY:
+            counter_int_only += 1
+        elif bittype == CONT_ONLY:
+            counter_cont_only += 1
+        elif bittype == MIXED:
+            counter_mixed += 1
+        else:          # Anything that doesn't fit one of the above QC types
+            counter_other += 1
+
+            
+        # Loop linear terms.   Record contribution of linear part of QC
+        # to the QC inf and sup (any constant term already recorded at
+        # initialization of inf and sup).
+
+        for i in range(linlen):
+            coeff = row.getCoeff(i)
+            if coeff != 0:
+                var = row.getVar(i)
+                linpart_variables.add(var)
+                if qclhs_lb > -gp.GRB.INFINITY:
+                    t = common.min_value(var, coeff)
+                    if t != -gp.GRB.INFINITY:
+                        qclhs_lb += t
+                    else:
+                        qclhs_lb = -gp.GRB.INFINITY
+
+                if qclhs_ub < gp.GRB.INFINITY:
+                    t = common.max_value(var, coeff)
+                    if t != gp.GRB.INFINITY:
+                        qclhs_ub += t
+                    else:
+                        qclhs_ub = gp.GRB.INFINITY
+
+        if qconstraint.QCSense == gp.GRB.EQUAL:
+            counter_equality += 1
+        else:
+            counter_inequality += 1
+
+        if qlen == 0:
+            if linlen == 0:
+                counter_empty += 1
+            else:
+                counter_lin_only += 1
+        else:
+            if linlen == 0:
+                counter_quad_only += 1
+#
+#   Final results.  Counters that are at -1 were flagged as
+#   not needing counting due to the numbers of different types of
+#   variables in the model (e.g. you can't have constraints involving
+#   bilinear terms of continuous variables when the model is all binary,
+#   so flag that and don't bother counting in the inner loop across the QC
+#
+    data["numQCEqConstraints"]    = counter_equality
+    data["numQCInEqConstraints"]  = counter_inequality
+    data["numQCEmptyConstrs"]     = counter_empty
+    data["numQCBndConstrs"]       = counter_bound
+    if counter_cont_only == -1:
+        counter_cont_only = 0
+    data["numQCContConstrs"]      = counter_cont_only
+    data["numQCIntConstrs"]       = counter_int_only
+    if counter_bin_only == -1:
+        counter_bin_only = 0
+    data["numQCBinConstrs"]       = counter_bin_only
+    if counter_mixed == -1:
+        counter_mixed = 0
+    data["numQCMixedConstrs"]     = counter_mixed
+    data["numQCOtherConstrs"]     = counter_other
+    data["numQCQuadOnlyConstrs"]  = counter_quad_only
+    data["numQCLinOnlyConstrs"]   = counter_lin_only
+    data["numQCEmptyConstrs"]     = counter_empty
+    if counter_common_bin == -1:
+        counter_common_bin = 0
+    data["numQCBinFactorConstrs"] = counter_common_bin
+    
+    return quadpart_variables, linpart_variables

@@ -13,7 +13,8 @@ def process_basic_information(model, data):
     data["MaxQCRHS"] = model.MaxQCRHS
     data["MinQCRHS"] = model.MinQCRHS
 
-    data["numNZs"] = model.NumNZs
+    data["NumNZs"] = model.NumNZs
+    data["DNumNZs"] = model.DNumNZs
     data["NumQNZs"] = model.NumQNZs
     data["NumQCNZs"] = model.NumQCNZs
 
