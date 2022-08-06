@@ -1,11 +1,12 @@
 import gurobipy as gp
 from gurobipy import GRB
 from common import *
+import argparse
 #
 #   Ill conditioning explainer.   If the model has basis statuses, it will
 #   use them, computing the factorization if needed.   If no basis statuses
 #   are available, solve the LP to optimality (or whatever the final status
-#   is and use that basis.
+#   is) and use that basis.
 #   Computing exact Kappa can be expensive.   Set KappaExact to 0 to avoid,
 #   KappaExact to 1 to force this (in addition to estimated Kappa).  Default
 #   of -1 decides based on model size.
@@ -14,8 +15,14 @@ from common import *
 BASIC      =  0         # VBasis status IDs
 AT_LB      = -1
 SUPERBASIC = -3
+SOLVELP    = 0
+SOLVEQP    = 1
+SOLVEMIP   = 2
 
-def kappa_explain(model, data=None, KappaExact = -1, prmfile = None):
+
+def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
+                  relaxobjtype = SOLVELP):
+
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
         return None
@@ -80,7 +87,8 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None):
     if prmfile != None:
         explmodel.read(prmfile)
     explmodel.update()
-    explmodel.feasRelax(0, False, None, None, None, excons[0:nbas], [1.0]*nbas)
+    explmodel.feasRelax(relaxobjtype, False, None, None, None, \
+                        excons[0:nbas], [1.0]*nbas)
 #
 #   Solve configuration completed.  Solve the model that will give us
 #   a certificate of ill conditioning.
