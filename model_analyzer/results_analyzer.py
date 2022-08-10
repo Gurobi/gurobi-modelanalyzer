@@ -21,8 +21,28 @@ SOLVEMIP   = 2
 
 
 def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
-                  relaxobjtype = SOLVELP):
+                  relobjtype = SOLVELP):
+    '''Ill conditioning explainer.   Any basis statuses, in the model
+       will be used, computing the factorization if needed.   If no statuses
+       are available, solve the LP to optimality (or whatever the final 
+       solve status is) and use that basis.
 
+       Arguments:
+       model      (required) The LP model whose basis will be examined.
+                             Basis can be from completed solve or statuses.
+                             LP will be optimized if no basis present
+       data                  Do not provide.  Used only for Gurobi routines.
+       KappaExact (optional) 1 = display exacti condition number in stats
+                             0 = display less computationally intensive estimate
+                            -1 = (default) decide based on problem size.
+       prmfile    (optional) Parameter settings file for the subproblem
+                             solved to derive the ill conditioning certificate.
+       relobjtype (optional) Type of subproblem to create for calculation of
+                             ill conditioning certificate.
+                             SOLVELP (default) 
+                             SOLVEQP
+                             SOLVEMIP '''
+    
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
         return None
@@ -87,7 +107,7 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
     if prmfile != None:
         explmodel.read(prmfile)
     explmodel.update()
-    explmodel.feasRelax(relaxobjtype, False, None, None, None, \
+    explmodel.feasRelax(relobjtype, False, None, None, None, \
                         excons[0:nbas], [1.0]*nbas)
 #
 #   Solve configuration completed.  Solve the model that will give us
