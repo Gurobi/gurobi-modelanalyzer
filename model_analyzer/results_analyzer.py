@@ -18,10 +18,14 @@ SUPERBASIC = -3
 SOLVELP    = 0
 SOLVEQP    = 1
 SOLVEMIP   = 2
-
+BYROWS     = 1
+BYCOLS     = 2
 
 def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
-                  relobjtype = SOLVELP):
+                  relobjtype = SOLVELP, expltype = BYROWS):
+#
+#   Help function info
+#    
     '''Ill conditioning explainer.   Any basis statuses, in the model
        will be used, computing the factorization if needed.   If no statuses
        are available, solve the LP to optimality (or whatever the final 
@@ -41,19 +45,21 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
                              ill conditioning certificate.
                              SOLVELP (default) 
                              SOLVEQP
-                             SOLVEMIP '''
+                             SOLVEMIP 
+       expltype   (optional) Row (BYROWS) or column (BYCOLS) based computation 
+                             and explanation'''
     
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
         return None
-#    import pdb; pdb.set_trace()    
+    import pdb; pdb.set_trace()    
 
     modvars = model.getVars()
     modcons = model.getConstrs()
     
-    explmodel = extract_basis(model, modvars, modcons)
+    explmodel = extract_basis(model, modvars, modcons, modeltype=expltype)
     explmodel.update()
-    resmodel  = model.copy()
+    resmodel  = None
     kappastats(model, data, KappaExact)
     explmodel.write("explmodel.lp")          # debug only
 #
@@ -145,68 +151,100 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
 #   The y variables were created before calling feasRelax.  Extract
 #   them, as they are the certificate of ill conditioning.
 #
-    yvars     = explmodel.getVars()[0:nbas]
-    rcons     = resmodel.getConstrs()
-    rconsdict = {}
-    count     = 0
     yvals     = []
-    delcons   = []
+    yvars     = None
+    if expltype == BYROWS:
+        yvars     = explmodel.getVars()[0:nbas]
+        resmodel  = model.copy()
+        rcons     = resmodel.getConstrs()
+        rconsdict = {}
+        count     = 0
+        delcons   = []
 #
-#   The order in which we created variables when extracting creating 
-#   the explainer problem typically will not match the order of the
-#   constraints in the original model.   So we need to use a dictionary
-#   to map the support of the y vector to the correct constraints
-#   in the computed explanation.
+#       The order in which we created variables when extracting 
+#       the explainer problem typically will not match the order of the
+#       constraints in the original model.   So we need to use a dictionary
+#       to map the support of the y vector to the correct constraints
+#       in the computed explanation.
 #
-    combinedlhs = gp.LinExpr()            # y'A; y is inf. certificate
-    for c in rcons:
-        rconsdict[c.ConstrName] = c
+
+        combinedlhs = gp.LinExpr()            # y'A; y is inf. certificate
+        for c in rcons:
+            rconsdict[c.ConstrName] = c
         
-    for yv in yvars:
-        if abs(yv.X) < 1e-13:             # TODO: make this tol relative
-                                          # based on max row coeff.
-            delcons.append(rconsdict[yv.VarName])  # To be filtered out.
-        else:
-#            print("Include constraint ", yv.VarName)     #dbg
-            yvals.append(abs(yv.X))
-            thiscon = rconsdict[yv.VarName]
-            thiscon.ConstrName = ("(mult=" + str(yv.X) + ")") + \
-                thiscon.ConstrName
-            # Inf. Certificate contribution to this constraint.
-            combinedlhs.add(resmodel.getRow(thiscon), yv.X)
-        count += 1
+        for yv in yvars:
+            if abs(yv.X) < 1e-13:             # TODO: make this tol relative
+                                              # based on max row coeff.
+                delcons.append(rconsdict[yv.VarName])  # To be filtered out.
+            else:
+#               print("Include constraint ", yv.VarName)     #dbg
+                yvals.append(abs(yv.X))
+                thiscon = rconsdict[yv.VarName]
+                thiscon.ConstrName = ("(mult=" + str(yv.X) + ")") + \
+                    thiscon.ConstrName
+                # Inf. Certificate contribution to this constraint.
+                combinedlhs.add(resmodel.getRow(thiscon), yv.X)
+            count += 1           # do we actually need this?
                   
-    resmodel.addLConstr(combinedlhs, GRB.LESS_EQUAL, GRB.INFINITY, "Combined")  
-    resmodel.remove(delcons)
-    resmodel.update()
+        resmodel.addLConstr(combinedlhs, GRB.LESS_EQUAL, GRB.INFINITY, \
+                            "Combined")  
+        resmodel.remove(delcons)
+        resmodel.update()
 #
-#   Filter out the nonbasic variables of the original model that appear
-#   in the constraints ih the explainer model.
+#       Filter out the nonbasic variables of the original model that appear
+#       in the constraints ih the explainer model.
 #
-    delvars    = []
-    resvardict = {}
-    resvars    = resmodel.getVars()
-    for v in resvars:
-        resvardict[v.VarName] = v
-    for v in model.getVars():
-        if v.vBasis != BASIC:
-            delvars.append(resvardict[v.VarName])
-    resmodel.remove(delvars)
-    resmodel.update()
+        delvars    = []
+        resvardict = {}
+        resvars    = resmodel.getVars()
+        for v in resvars:
+            resvardict[v.VarName] = v
+        for v in model.getVars():
+            if v.vBasis != BASIC:
+                delvars.append(resvardict[v.VarName])
+        resmodel.remove(delvars)
+        resmodel.update()
 #
-#   Print the combined value y'B to the screen, including all nonzero
-#   values
+#       Print the combined value y'B to the screen, including all nonzero
+#       values
 #
-    combinedcon = (resmodel.getConstrs())[resmodel.numConstrs - 1]
-    print("Vector matrix product of certificate of ill conditioning and basis:")
-    print(resmodel.getRow(combinedcon))
-                           
+        combinedcon = (resmodel.getConstrs())[resmodel.numConstrs - 1]
+        print("Vector matrix product of certificate of ill conditioning" + \
+              " and basis:")
+        print(resmodel.getRow(combinedcon))
+    else:              # Column based explanation
+        yvars     = explmodel.getVars()
+        resmodel  = explmodel.copy()
+        rvars     = resmodel.getVars()
+        rvarsdict = {}
+        delvars   = []
+        for v in rvars:
+            rvarsdict[v.VarName] = v
+        for yv in yvars:
+            if abs(yv.X) < 1e-13 or (yv.VarName).startswith("Art"):
+                # TODO: make this tol relative based on max row coeff.
+                delvars.append(rvarsdict[yv.VarName])  # To be filtered out.
+            else:
+                #
+                # Don't include relaxation variables.
+                #
+                print("Include variable ", yv.VarName)       #dbg
+                yvals.append(abs(yv.X))
+                thisvar = rvarsdict[yv.VarName]
+                thisvar.VarName = ("(mult=" + str(yv.X) + ")") + thisvar.VarName
+
+        resmodel.remove(delvars)                     
+        rcons = resmodel.getConstrs()
+        resmodel.remove(rcons[len(rcons) - 1])  # e'x = 1 is not in explanation
     resmodel.setObjective(0)
     if model.ModelName == "":
         modelname = "model"
     else:
         modelname = model.ModelName
-    filename = modelname + "_kappaexplain.lp"
+    if expltype == BYROWS:
+        filename = modelname + "_kappaexplain.lp"
+    else:
+        filename = modelname + "_kappaexplain.mps"
     resmodel.write(filename)
 #
 #   Final info
@@ -219,13 +257,13 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
 #
 #   For a given basis matrix B from the model provided, create the basis
 #   model:
-#   B'y = 0
+#   B'y = 0         // or By = 0 if modeltype == BYCOLS
 #   e'y = 1         // normalization of y != 0 constraint
 #   y free
 #
 #   This is an infeasible model for any nonsingular basis matrix B.
 #
-def extract_basis(model, modvars, modcons):
+def extract_basis(model, modvars, modcons, modeltype=BYROWS):
 #
 #   Does the model have a factorized basis?  If not, need to solve it
 #   first.
@@ -241,7 +279,6 @@ def extract_basis(model, modvars, modcons):
         
     m        = model.numConstrs
     n        = model.numVars
-    explmodel = gp.Model("basismodel")
 #
 #   Extract the basic structural variables from the model into the model
 #   containing the basis matrix of interest.  Each column of the basis
@@ -250,41 +287,77 @@ def extract_basis(model, modvars, modcons):
 #   model.
 #
     explvardict = {}
-    for var in modvars:          # structural basic variables
-        if var.VBasis != BASIC:
-            continue
-        col = model.getCol(var)
-        varlist  = []
-        coeflist = []
-        for i in range(col.size()):
-            coeff = col.getCoeff(i)
-            con   = col.getConstr(i)
+    explmodel = gp.Model("basismodel")
+    if modeltype == BYROWS:
+        for var in modvars:          # structural basic variables
+            if var.VBasis != BASIC:
+                continue
+            col = model.getCol(var)
+            varlist  = []
+            coeflist = []
+            for i in range(col.size()):
+                coeff = col.getCoeff(i)
+                con   = col.getConstr(i)
+                vname = con.ConstrName
+                if not vname in explvardict:
+                    explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
+                                                      name = vname)
+                varlist.append(explvardict[vname])
+                coeflist.append(coeff)
+            
+            lhs = gp.LinExpr(coeflist, varlist)
+            explmodel.addConstr(lhs == 0, name=var.VarName)
+
+        for con in modcons:          # slack basic variables
+            if con.CBasis != BASIC:
+                continue
+            if con.Sense == '>':
+                coeff = -1.0
+            else:
+                coeff = 1.0
             vname = con.ConstrName
             if not vname in explvardict:
                 explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
                                                       name = vname)
-            varlist.append(explvardict[vname])
-            coeflist.append(coeff)
+            explmodel.addConstr(coeff*explvardict[vname] == 0, \
+                                name="slack_" + con.ConstrName)
+    else:          # BYCOLS; assumes modeltype has been checked by caller
+        explcondict = {}
+        for con in modcons:
             
-        lhs = gp.LinExpr(coeflist, varlist)
-        explmodel.addConstr(lhs == 0, name=var.VarName)
+            explcondict[con.ConstrName] = \
+                explmodel.addConstr(0, GRB.EQUAL, 0, name=con.ConstrName)
 
-    for con in modcons:          # slack basic variables
-        if con.CBasis != BASIC:
-            continue
-        if con.Sense == '>':
-            coeff = -1.0
-        else:
-            coeff = 1.0
-        vname = con.ConstrName
-        if not vname in explvardict:
-            explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
-                                                  name = vname)
-        explmodel.addConstr(coeff*explvardict[vname] == 0, \
-                            name="slack_" + con.ConstrName)
+        #
+        # Structural basic variables.  The column from the original model
+        # needs to reference the constraint in the explainer model, not
+        # the original model.
+        #
+        for var in modvars:          
+            if var.VBasis != BASIC:
+                continue
+            col = model.getCol(var)
+            for k in range(col.size()):
+                colcon = col.getConstr(k)
+                colcon = explcondict[colcon.ConstrName]
+            explmodel.addVar(obj=0.0, name=var.VarName, column=col)
+        #
+        #   Structural variables done.  Now do the basic slack variables
+        #
+        for con in modcons:          # slack basic variables
+            if con.CBasis != BASIC:
+                continue
+            if con.Sense == '>':
+                coeff = -1.0
+            else:
+                coeff = 1.0
+            vname = "slack_" + con.ConstrName
+            col = gp.Column([coeff], [explcondict[con.ConstrName]])
+            explmodel.addVar(obj=0.0, name=vname, column=col)
 #
-#   B'y = 0 constraints are done.   All variables are now created, so
-#   add the e'y = 1 constraint and we are done.
+#   B'y = 0 or By = 0 constraints are done.   All variables are now created, so
+#   add the e'y = 1 constraint and we are done.  This is the same,
+#   regardless of whether the explanation model is row or column based.
 #
     explmodel.update()
     explmodel.addConstr(gp.quicksum(explmodel.getVars()) == 1)
