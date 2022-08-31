@@ -384,6 +384,86 @@ def kappastats(model, data, KappaExact):
     if data != None:
         data["Kappa"]      = kappa
         data["KappaExact"] = kappaexact
+
+#
+#   Split free variables into difference of two nonnegative variables.
+#   Also works on other variables whose lower bound is the opposite of
+#   its upper bound.  varstosplit identifies the candidate list of variables
+#   to split.  If not set or None, will treat all variables as candidates.
+#   Only those that meet the "mirrored variable" criteria will
+#   be split.   Most common use case will be to split free variables.
+#
+#   Alters the model, so use a copy if you want to preserve the original
+#   model.  
+#
+def splitmirroredvars(model, varstosplit=None):
+    if varstosplit == None:
+        varstosplit = model.getVars()
+
+    newvarlist = []           # This var and dict is used to handle
+    newvardict = {}           # quadratic objective and constraints
+    for v in varstosplit:
+        if v.UB != -v.LB:
+            continue
+        #
+        #  We have a candidate variable to split.
+        #
+        bnd       = v.UB
+        varname   = v.VarName
+        v.VarName = varname + "_GRBPlus"
+        col       = model.getCol(v)
+        splitcol  = gp.Column()
+        coeflist  = []
+        conlist   = []
+        for k in range(col.size()):
+            coeflist.append(-col.getCoeff(k))
+            conlist.append(col.getConstr(k))
+        splitcol.addTerms(coeflist, conlist)
+        v.LB = 0
+        newvar = model.addVar(lb=0.0, ub=bnd, obj=-v.obj, vtype=v.Vtype, \
+                              name=varname + "_GRBMinus", column=splitcol)
+        newvarlist.append(newvar)
+        newvardict[v.VarName] = newvar
+
+    #
+    # Linear constraints completed; now update any QCs that contain
+    # mirrored variables that need to be split.
+    #
+    for qcon in model.getQConstrs():
+        quadexpr = model.getQCRow(qcon)
+        for k in range(quadexpr.size()):
+            xi = quadexpr.getVar1(k)
+            xj = quadexpr.getVar2(k)
+            qcoef = quadexpr.getCoeff(k)
+            if xi.varName in newvardict:      # xi is split into xi(+) - xi(-)
+                # xi(-) * xj term
+                quadexpr.addTerms(-qcoef, xj, newvardict[xi.VarName])
+                if xj.varName in newvardict: # both xi and xj split
+                    # xi * xj(-) term
+                    quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+                    # xi(-) * xj(-) term
+                    quadexpr.addTerms(qcoef, newvardict[xi.VarName], \
+                                      newvardict[xj.VarName])
+            else:                             
+                if xj.varName in newvardict: # xj is split, but xi is not.
+                    # xi * xj(-) term
+                    quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+        #
+        # Quadratic expression is updated; need to create a new
+        # QC with the update quadexpr and delete the old one.
+        #
+        model.addQConstr(quadexpr, qcon.QCSense, qcon.QCRHS, qcon.QCName)
+        model.remove(qcon)
+                    
+    #
+    # Quadratic constraints completed; now the quadratic objective if it 
+    # contains any mirrored variables that need to be split.
+    #
+    model.update()
+                            
+
+
+
 #
 #   TODO: include Skeel condition number calculation
 #
