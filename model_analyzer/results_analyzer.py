@@ -2,6 +2,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from common import *
 import argparse
+import os
 #
 #   Ill conditioning explainer.   If the model has basis statuses, it will
 #   use them, computing the factorization if needed.   If no basis statuses
@@ -22,7 +23,8 @@ BYROWS     = 1
 BYCOLS     = 2
 
 def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
-                  relobjtype = SOLVELP, expltype = BYROWS):
+                  relobjtype = SOLVELP, expltype = BYROWS, \
+                  splitfreevars = True):
 #
 #   Help function info
 #    
@@ -57,7 +59,8 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
     modvars = model.getVars()
     modcons = model.getConstrs()
     
-    explmodel = extract_basis(model, modvars, modcons, modeltype=expltype)
+    explmodel, splitvardict = extract_basis(model, modvars, modcons, \
+                                            expltype, splitfreevars)
     explmodel.update()
     resmodel  = None
     kappastats(model, data, KappaExact)
@@ -113,7 +116,7 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
     if prmfile != None:
         explmodel.read(prmfile)
     explmodel.update()
-    explmodel.feasRelax(relobjtype, False, None, None, None, \
+    explmodel.feasRelax(relobjtype, splitfreevars, None, None, None, \
                         excons[0:nbas], [1.0]*nbas)
 #
 #   Solve configuration completed.  Solve the model that will give us
@@ -173,21 +176,39 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
             rconsdict[c.ConstrName] = c
         
         for yv in yvars:
-            if abs(yv.X) < 1e-13:             # TODO: make this tol relative
-                                              # based on max row coeff.
-                delcons.append(rconsdict[yv.VarName])  # To be filtered out.
+            if splitfreevars:
+                #
+                # resmodel is in terms of original model.   Need to
+                # provide y values and constraint names in terms of
+                # the original model, not the explainer model in which
+                # the free variables have been split.  Make use of the
+                # splitvardict dictionary that connects each pair of
+                # split free variables to do this.  We need to extract
+                # the original model constraint name from the split
+                # variable names that have the plus/minus GRB suffixes.
+                #
+                yval     = yv.X - splitvardict[yv.VarName].X
+                ynamelen = len(yv.VarName) - len("_GRBPlus") 
+                yname    = yv.VarName[0:ynamelen]   # original constr name.
             else:
-#               print("Include constraint ", yv.VarName)     #dbg
-                yvals.append(abs(yv.X))
-                thiscon = rconsdict[yv.VarName]
-                thiscon.ConstrName = ("(mult=" + str(yv.X) + ")") + \
+                yval     = yv.X
+                yname    = yv.VarName
+                
+            if abs(yval) < 1e-13:             # TODO: make this tol relative
+                                              # based on max row coeff.
+                delcons.append(rconsdict[yname])  # To be filtered out.
+            else:
+                print("Include constraint ", yname)     #dbg
+                yvals.append(abs(yval))
+                thiscon = rconsdict[yname]
+                thiscon.ConstrName = ("(mult=" + str(yval) + ")") + \
                     thiscon.ConstrName
                 # Inf. Certificate contribution to this constraint.
-                combinedlhs.add(resmodel.getRow(thiscon), yv.X)
+                combinedlhs.add(resmodel.getRow(thiscon), yval)
             count += 1           # do we actually need this?
                   
         resmodel.addLConstr(combinedlhs, GRB.LESS_EQUAL, GRB.INFINITY, \
-                            "Combined")  
+                            "Combined_Row")  
         resmodel.remove(delcons)
         resmodel.update()
 #
@@ -213,29 +234,83 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
               " and basis:")
         print(resmodel.getRow(combinedcon))
     else:              # Column based explanation
-        yvars     = explmodel.getVars()
-        resmodel  = explmodel.copy()
-        rvars     = resmodel.getVars()
-        rvarsdict = {}
-        delvars   = []
+        yvars       = explmodel.getVars()[0:nbas]
+        resmodel    = explmodel.copy()
+        rvars       = resmodel.getVars()
+        rvarsdict   = {}
+        delvars     = []
+        combinedcol = gp.Column()
         for v in rvars:
             rvarsdict[v.VarName] = v
         for yv in yvars:
-            if abs(yv.X) < 1e-13 or (yv.VarName).startswith("Art"):
+            if splitfreevars:
+                #
+                # Unlike the row explanation, resmodel may include slack
+                # variables that are not explicit variables of the original
+                # model.   Need to provide y (i.e. column) values in terms of
+                # the original model, not the explainer model in which
+                # the free variables have been split.  Make use of the
+                # splitvardict dictionary that connects each pair of
+                # split free variables to do this.  We need to extract
+                # the original model constraint name from the split
+                # variable names that have the plus/minus GRB suffixes.
+                #
+                minusvar   = splitvardict[yv.VarName]
+                yval       = yv.X - minusvar.X
+                ynamelen   = len(yv.VarName) - len("_GRBPlus") 
+                yname      = yv.VarName[0:ynamelen]   # original variable name
+                delvars.append(rvarsdict[minusvar.VarName])
+            else:
+                yval     = yv.X
+                yname    = yv.VarName
+            if abs(yval) < 1e-13:
                 # TODO: make this tol relative based on max row coeff.
                 delvars.append(rvarsdict[yv.VarName])  # To be filtered out.
             else:
                 #
                 # Don't include relaxation variables.
                 #
-                print("Include variable ", yv.VarName)       #dbg
-                yvals.append(abs(yv.X))
+                print("Include variable ", yname)       #dbg
+                yvals.append(abs(yval))
                 thisvar = rvarsdict[yv.VarName]
-                thisvar.VarName = ("(mult=" + str(yv.X) + ")") + thisvar.VarName
+                thisvar.VarName = ("(mult=" + str(yval) + ")") + yname
+                thiscol   = resmodel.getCol(thisvar)
+                coefflist = []
+                conlist   = []
+                for k in range(thiscol.size()):
+                    coefflist.append(yval*thiscol.getCoeff(k))
+                    conlist.append(thiscol.getConstr(k))
+                combinedcol.addTerms(coefflist, conlist)
 
-        resmodel.remove(delvars)                     
+#
+#       Remove the feasrelax slack variables that were introduced into the
+#       explainer model.  Then remove the variables from the explainer model
+#       that are not part of the explanation.
+#
+        explmodvars = resmodel.getVars()
+        start = nbas
+        if splitfreevars:
+            start = 2*nbas
+        end   = len(explmodvars)
+        resmodel.remove(explmodvars[start:end])
+        #resmodel.remove(delvars)
+        for dv in delvars:
+            resmodel.remove(dv)
+            
+        resmodel.update()
+        resmodel.addVar(name="Combined_Column", column=combinedcol)
         rcons = resmodel.getConstrs()
-        resmodel.remove(rcons[len(rcons) - 1])  # e'x = 1 is not in explanation
+        #
+        # e'x = 1 is not in explanation
+        # if using lasso approach, then feasrelax phase I constraint
+        # also needs to be removed from the explanation
+        #
+        resmodel.remove(rcons[len(rcons) - 1])
+        if splitfreevars:
+            resmodel.remove(rcons[len(rcons) - 2])
+        #
+        # Done with column specific part of explanation.
+        #
     resmodel.setObjective(0)
     if model.ModelName == "":
         modelname = "model"
@@ -263,7 +338,8 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
 #
 #   This is an infeasible model for any nonsingular basis matrix B.
 #
-def extract_basis(model, modvars, modcons, modeltype=BYROWS):
+def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
+                  splitfreevars=False):
 #
 #   Does the model have a factorized basis?  If not, need to solve it
 #   first.
@@ -275,6 +351,22 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS):
         need_basis = True     # TODO: handle statuses but no LU case.
     
     if need_basis:
+        #
+        # No factorized basis available. If basis statuses are available,
+        # use the basis specified by the statuses, irrespective of optimality.
+        #
+        try:
+            model.write("GRBjunk.bas")
+            #
+            # No factorization, but complete basis statuses available.
+            # Compute the explanation on the basis in the statuses.
+            #
+            model.setParam("IterationLimit", 0)
+            model.setParam("Method", 0)
+            os.remove("./GRBjunk.bas")
+        except AttributeError as e:
+            tmp = 0      # No statuses or factorization; solve from scratch
+            
         model.optimize() #TODO:check status to confirm basis available after solve.
         
     m        = model.numConstrs
@@ -324,7 +416,9 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS):
     else:          # BYCOLS; assumes modeltype has been checked by caller
         explcondict = {}
         for con in modcons:
-            
+            #
+            # Constraint initialization for building explainer model by col
+            #
             explcondict[con.ConstrName] = \
                 explmodel.addConstr(0, GRB.EQUAL, 0, name=con.ConstrName)
 
@@ -340,7 +434,8 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS):
             for k in range(col.size()):
                 colcon = col.getConstr(k)
                 colcon = explcondict[colcon.ConstrName]
-            explmodel.addVar(obj=0.0, name=var.VarName, column=col)
+            explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
+                             column=col)
         #
         #   Structural variables done.  Now do the basic slack variables
         #
@@ -353,15 +448,30 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS):
                 coeff = 1.0
             vname = "slack_" + con.ConstrName
             col = gp.Column([coeff], [explcondict[con.ConstrName]])
-            explmodel.addVar(obj=0.0, name=vname, column=col)
+            explmodel.addVar(obj=0.0, lb = -float('inf'), name=vname, \
+                             column=col)
 #
 #   B'y = 0 or By = 0 constraints are done.   All variables are now created, so
 #   add the e'y = 1 constraint and we are done.  This is the same,
 #   regardless of whether the explanation model is row or column based.
 #
     explmodel.update()
-    explmodel.addConstr(gp.quicksum(explmodel.getVars()) == 1)
-    return explmodel
+    splitvardict = None
+    if splitfreevars:
+        plusvars     = explmodel.getVars()
+        splitvardict = splitmirroredvars(explmodel)
+        minusvars    = []
+        for v in plusvars:
+            minusvar = splitvardict[v.VarName]
+            minusvars.append(minusvar)
+#            explmodel.addSOS(GRB.SOS_TYPE1, [v, minusvar]) 
+                             
+        explmodel.addConstr(gp.quicksum(plusvars) - gp.quicksum(minusvars) == 1)
+        explmodel.setObjective(gp.quicksum(plusvars) + gp.quicksum(minusvars))
+    else:
+        explmodel.addConstr(gp.quicksum(explmodel.getVars()) == 1)        
+
+    return explmodel,splitvardict
 
 
 
@@ -394,9 +504,13 @@ def kappastats(model, data, KappaExact):
 #   be split.   Most common use case will be to split free variables.
 #
 #   Alters the model, so use a copy if you want to preserve the original
-#   model.  
+#   model.
+#
+#   Tests:  1) Test on a model with only QCs.
+#           2) Test on a model with linear obj terms but no linear constraints.
 #
 def splitmirroredvars(model, varstosplit=None):
+    model.update()
     if varstosplit == None:
         varstosplit = model.getVars()
 
@@ -408,13 +522,14 @@ def splitmirroredvars(model, varstosplit=None):
         #
         #  We have a candidate variable to split.
         #
-        bnd       = v.UB
-        varname   = v.VarName
-        v.VarName = varname + "_GRBPlus"
-        col       = model.getCol(v)
-        splitcol  = gp.Column()
-        coeflist  = []
-        conlist   = []
+        bnd        = v.UB
+        varname    = v.VarName 
+        chgvarname = v.VarName  + "_GRBPlus"
+        v.VarName  = chgvarname
+        col        = model.getCol(v)
+        splitcol   = gp.Column()
+        coeflist   = []
+        conlist    = []
         for k in range(col.size()):
             coeflist.append(-col.getCoeff(k))
             conlist.append(col.getConstr(k))
@@ -423,7 +538,7 @@ def splitmirroredvars(model, varstosplit=None):
         newvar = model.addVar(lb=0.0, ub=bnd, obj=-v.obj, vtype=v.Vtype, \
                               name=varname + "_GRBMinus", column=splitcol)
         newvarlist.append(newvar)
-        newvardict[v.VarName] = newvar
+        newvardict[chgvarname] = newvar
 
     #
     # Linear constraints completed; now update any QCs that contain
@@ -431,23 +546,7 @@ def splitmirroredvars(model, varstosplit=None):
     #
     for qcon in model.getQConstrs():
         quadexpr = model.getQCRow(qcon)
-        for k in range(quadexpr.size()):
-            xi = quadexpr.getVar1(k)
-            xj = quadexpr.getVar2(k)
-            qcoef = quadexpr.getCoeff(k)
-            if xi.varName in newvardict:      # xi is split into xi(+) - xi(-)
-                # xi(-) * xj term
-                quadexpr.addTerms(-qcoef, xj, newvardict[xi.VarName])
-                if xj.varName in newvardict: # both xi and xj split
-                    # xi * xj(-) term
-                    quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
-                    # xi(-) * xj(-) term
-                    quadexpr.addTerms(qcoef, newvardict[xi.VarName], \
-                                      newvardict[xj.VarName])
-            else:                             
-                if xj.varName in newvardict: # xj is split, but xi is not.
-                    # xi * xj(-) term
-                    quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+        splitquadexpr(quadexpr, newvardict)
         #
         # Quadratic expression is updated; need to create a new
         # QC with the update quadexpr and delete the old one.
@@ -459,11 +558,41 @@ def splitmirroredvars(model, varstosplit=None):
     # Quadratic constraints completed; now the quadratic objective if it 
     # contains any mirrored variables that need to be split.
     #
+    objexpr = model.getObjective()
+    if isinstance(objexpr, gp.QuadExpr):
+        splitquadexpr(objexpr, newvardict)
+        model.setObjective(objexpr)
     model.update()
-                            
+    return newvardict
+#
+#   Takes a quadratic expression and replaces mirrored variables with
+#   the appropriate difference of two nonnegative variables.  All
+#   mirrored variables are provided in newvardict, which maps the
+#   original mirrored variable to its added variable.
+    
+def splitquadexpr(quadexpr, newvardict):
+    for k in range(quadexpr.size()):
+        xi = quadexpr.getVar1(k)
+        xj = quadexpr.getVar2(k)
+        qcoef = quadexpr.getCoeff(k)
+        if xi.varName in newvardict:      # xi is split into xi(+) - xi(-)
+            # xi(-) * xj term
+            quadexpr.addTerms(-qcoef, xj, newvardict[xi.VarName])
+            if xj.varName in newvardict: # both xi and xj split
+                # xi * xj(-) term
+                quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+                # xi(-) * xj(-) term
+                quadexpr.addTerms(qcoef, newvardict[xi.VarName], \
+                                      newvardict[xj.VarName])
+        else:                             
+            if xj.varName in newvardict: # xj is split, but xi is not.
+                # xi * xj(-) term
+                quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
 
 
 
+
+                
 #
 #   TODO: include Skeel condition number calculation
 #
