@@ -72,7 +72,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     splitfreevars = method == LASSO or method == RLS
     explmodel, splitvardict = extract_basis(model, modvars, modcons, \
                                             expltype, splitfreevars)
-    explmodel.update()
+    explmodel.update()           # TODO; should be able to remove this.
     resmodel  = None
     kappastats(model, data, KappaExact)
     explmodel.write("explmodel.lp")          # debug only
@@ -340,6 +340,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     print("Maximum absolute multiplier value: ", str(max(yvals))) 
     print("Minimum absolute multiplier value: ", str(min(yvals))) 
     print("--------------------------------------------------------")
+    return ([], [], None)       # Compatibility with method=ANGLES
 #
 #   For a given basis matrix B from the model provided, create the basis
 #   model:
@@ -483,7 +484,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
         explmodel.setObjective(gp.quicksum(plusvars) + gp.quicksum(minusvars))
     else:
         explmodel.addConstr(gp.quicksum(explmodel.getVars()) == 1)        
-
+    explmodel.update()
     return explmodel,splitvardict
 
 
@@ -621,10 +622,10 @@ def angle_explain(model, howmany=1, partol=1e-6):
     modvars = model.getVars()
     explmodel, splitvardict = extract_basis(model, modvars, modcons, \
                                             None, False)
-    explmodel.update()     
     modcons = explmodel.getConstrs()
     modvars = explmodel.getVars()
-    explmodel.remove(modcons[len(modcons) - 1])      # Just want basis matrix
+    explmodel.remove(modcons.pop(-1))      # Just want basis matrix
+    explmodel.update()         
     #
     # Calculate mod value for hashing function, which depends on
     # max possible number of bits for an integer (typically 64).
@@ -634,15 +635,16 @@ def angle_explain(model, howmany=1, partol=1e-6):
     rowdict     = {}
     rowhashdict = {}
     count       = 0
-    modcons = modcons[0:len(modcons) - 1]
     for con in modcons:
         rowdict[con.ConstrName]     = count
         rowhashdict[con.ConstrName] = 0
         count += 1
-    coldict = {}
-    count   = 0
+    coldict     = {}
+    colhashdict = {}
+    count       = 0
     for var in modvars:
         coldict[var.VarName] = count
+        colhashdict[var.VarName] = 0
         count += 1
     #
     # Look for almost parallel rows.   Hash the rows as follows.
@@ -668,7 +670,7 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 rowhashdict[con.ConstrName] |= (1 << varbit)
         bucketlists[rowhashdict[con.ConstrName] % modval].append(con)
     #
-    # Check the constraints in the same bucket to see if they are
+    # Check the matrix rows in the same bucket to see if they are
     # almost parallel.
     #
     almostparcount   = 0
@@ -741,7 +743,98 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 break                       # Exit for k loop
         if quittingtime:
             break                           # Exit for bucket loop
-    return almostparrowlist, explmodel
+
+    #
+    # Now look for almost parallel columns.   Hash the rows in a smaller
+    # manner, except this time the bit values are based on row indices
+    # rather than column indices.
+    #
+    bucketlists = [[] for i in range(modval)]
+    for var in modvars:
+        col = explmodel.getCol(var)
+        for i in range(col.size()):
+            con  = col.getConstr(i)
+            coef = col.getCoeff(i)
+            if abs(coef) > partol:
+                varbit = rowdict[con.ConstrName] % modval
+                colhashdict[var.VarName] |= (1 << varbit)
+        bucketlists[colhashdict[var.VarName] % modval].append(var)
+    #
+    # Check the matrix columns in the same bucket to see if they are
+    # almost parallel.
+    #
+    almostparcollist = []
+    quittingtime     = False
+    for bucket in bucketlists:
+        for k in range(len(bucket)):
+            col1  = explmodel.getCol(bucket[k])
+            for j in range((k+1),len(bucket)):
+                col2  = explmodel.getCol(bucket[j])   
+                size1 = col1.size()     
+                size2 = col2.size()
+                if size1 != size2:
+                    continue               
+                #
+                # Simple length based filtering failed.  Compute inner products
+                # and norms.  Need to handle the case where two columns
+                # intersect the same rows, but in a different order.
+                #
+                col1dict = {}
+                col2dict = {}
+                for i in range(size1):
+                    ind1  = rowdict[col1.getConstr(i).ConstrName]
+                    coef1 = col1.getCoeff(i)
+                    col1dict[ind1] = coef1 
+                    ind2  = rowdict[col2.getConstr(i).ConstrName]
+                    coef2 = col2.getCoeff(i)
+                    col2dict[ind2] = coef2
+                    
+                #
+                # Compute the angle.  TODO: Make this calculation more
+                # precise.  Consider Kahan summation, and avoid adding
+                # big numbers and much smaller ones.
+                #
+                dotprod  = 0
+                norm1    = 0
+                norm2    = 0
+                skip     = False
+                for i in range(size1):
+                    ind1  = rowdict[col1.getConstr(i).ConstrName]
+                    if ind1 in col2dict:
+                        ind2     = rowdict[col2.getConstr(i).ConstrName]
+                        dotprod += col1dict[ind1]*col2dict[ind2]
+                        norm1   += col1dict[ind1]**2
+                        norm2   += col2dict[ind2]**2
+                    else:  # Intersecting variables differ; nothing to see here
+                        skip=True
+                        break
+                
+                if skip:  # Early exit due to index or coeff mismatch
+                    continue
+                norm1 = math.sqrt(norm1)    
+                norm2 = math.sqrt(norm2)
+                #
+                # Normalize the tolerance in the test; want the same
+                # result for vectors u and v and 1000u and 1000v
+                #
+                if abs(abs(dotprod) - norm1*norm2) > partol*norm1:
+                    continue
+                #
+                # Found two almost parallel rows.
+                #
+                almostparcount += 1
+                almostparcollist.append((bucket[k], bucket[j]))
+                if howmany <= 0 or almostparcount < howmany:
+                    continue
+                quittingtime=True
+                break                       # Exit for j loop
+            if quittingtime:
+                break                       # Exit for k loop
+        if quittingtime:
+            break                           # Exit for bucket loop
+ 
+        
+    return almostparrowlist, almostparcollist, explmodel
                                      
 
                 
