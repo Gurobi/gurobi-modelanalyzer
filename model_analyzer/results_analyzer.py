@@ -2,7 +2,9 @@ import gurobipy as gp
 from gurobipy import GRB
 from common import *
 import argparse
+import sys
 import os
+import math
 #
 #   Ill conditioning explainer.   If the model has basis statuses, it will
 #   use them, computing the factorization if needed.   If no basis statuses
@@ -13,18 +15,22 @@ import os
 #   of -1 decides based on model size.
 #
 
-BASIC      =  0         # VBasis status IDs
+BASIC      =  0             # VBasis status IDs
 AT_LB      = -1
 SUPERBASIC = -3
-SOLVELP    = 0
+SOLVELP    = 0              # relobjtype choices
 SOLVEQP    = 1
 SOLVEMIP   = 2
-BYROWS     = 1
+BYROWS     = 1              # expltype choices
 BYCOLS     = 2
+DEFAULT    = 0              # method choices.  Default = no regularization.
+ANGLES     = 1              # TODO: need to add this.
+LASSO      = 2              # One norm regularization.
+RLS        = 3              # Two norm regularization. TODO: Need to add this.
 
-def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
-                  relobjtype = SOLVELP, expltype = BYROWS, \
-                  splitfreevars = True):
+
+def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
+                  relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT ):
 #
 #   Help function info
 #    
@@ -54,11 +60,16 @@ def kappa_explain(model, data=None, KappaExact = -1, prmfile = None,  \
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
         return None
-    import pdb; pdb.set_trace()    
 
-    modvars = model.getVars()
-    modcons = model.getConstrs()
+    modvars = model.getVars()      
+    modcons = model.getConstrs()   
+
+    if method == ANGLES:
+        return angle_explain(model, 1)
+ 
     
+
+    splitfreevars = method == LASSO or method == RLS
     explmodel, splitvardict = extract_basis(model, modvars, modcons, \
                                             expltype, splitfreevars)
     explmodel.update()
@@ -360,11 +371,13 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
             #
             # No factorization, but complete basis statuses available.
             # Compute the explanation on the basis in the statuses.
+            # TODO: find a better way; this is ugly since it relies on
+            # the ability to write to disk.
             #
             model.setParam("IterationLimit", 0)
             model.setParam("Method", 0)
             os.remove("./GRBjunk.bas")
-        except AttributeError as e:
+        except gp.GurobiError as e:
             tmp = 0      # No statuses or factorization; solve from scratch
             
         model.optimize() #TODO:check status to confirm basis available after solve.
@@ -590,7 +603,146 @@ def splitquadexpr(quadexpr, newvardict):
                 quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
 
 
-
+#
+#   Look for easy explanations involving almost parallel pairs of
+#   matrix rows or columns.   Any pair that is almost parallel can
+#   be identified from having a very small angle, i.e., if the
+#   difference between the inner product of two vectors and the product
+#   if their two norms is within a small tolerance.  Or, if the negative
+#   of the inner product and the two norms is within a tolerance, they
+#   are almost parallel as well, i.e., the angle is close to 180 degrees.
+#   The howmany parameter controls how many near parallel items to report.
+#   Default is 1; integer values > 1 specify how many to report; integer
+#   values <= 0 indicate report all.
+#
+def angle_explain(model, howmany=1, partol=1e-6):
+    import pdb; pdb.set_trace()
+    modcons = model.getConstrs()
+    modvars = model.getVars()
+    explmodel, splitvardict = extract_basis(model, modvars, modcons, \
+                                            None, False)
+    explmodel.update()     
+    modcons = explmodel.getConstrs()
+    modvars = explmodel.getVars()
+    explmodel.remove(modcons[len(modcons) - 1])      # Just want basis matrix
+    #
+    # Calculate mod value for hashing function, which depends on
+    # max possible number of bits for an integer (typically 64).
+    # Also set up some dictionaries for hashing calculations.
+    #
+    modval      = 1 + math.ceil(math.log(sys.maxsize,2))
+    rowdict     = {}
+    rowhashdict = {}
+    count       = 0
+    modcons = modcons[0:len(modcons) - 1]
+    for con in modcons:
+        rowdict[con.ConstrName]     = count
+        rowhashdict[con.ConstrName] = 0
+        count += 1
+    coldict = {}
+    count   = 0
+    for var in modvars:
+        coldict[var.VarName] = count
+        count += 1
+    #
+    # Look for almost parallel rows.   Hash the rows as follows.
+    # For each row define a 64 bit int h[i] such that if variable
+    # xj appears in the row with a coefficient larger than epsilon
+    # you set bit j % 64 in h_i. Then, for a pair (i1,i2) of rows,
+    # if h[i1] != h[i2], the two rows cannot be almost parallel.
+    # First, create the hash values and put the constraints with the
+    # same hash value in the same bucket.   Don't hash small nonzeros
+    # below partol; that way we pick up the case where one row is
+    # (1 1) and another intersects the same two nonzeros but is
+    # (1 1 eps).   We want to flag those as almost parallel, so we
+    # want them to have the same hash value.
+    #
+    bucketlists = [[] for i in range(modval)]
+    for con in modcons:
+        rowlhs = explmodel.getRow(con)
+        for j in range(rowlhs.size()):
+            var  = rowlhs.getVar(j)
+            coef = rowlhs.getCoeff(j)
+            if abs(coef) > partol:
+                varbit = coldict[var.VarName] % modval
+                rowhashdict[con.ConstrName] |= (1 << varbit)
+        bucketlists[rowhashdict[con.ConstrName] % modval].append(con)
+    #
+    # Check the constraints in the same bucket to see if they are
+    # almost parallel.
+    #
+    almostparcount   = 0
+    almostparrowlist = []
+    quittingtime     = False
+    for bucket in bucketlists:
+        for k in range(len(bucket)):
+            lhs1  = explmodel.getRow(bucket[k])
+            for j in range((k+1),len(bucket)):
+                lhs2  = explmodel.getRow(bucket[j])   
+                size1 = lhs1.size()     
+                size2 = lhs2.size()
+                if size1 != size2:
+                    continue               
+                #
+                # Simple length based filtering failed.  Compute inner products
+                # and norms.  Need to handle the case where two rows intersect
+                # the same variables, but in a different order.
+                #
+                row1dict = {}
+                row2dict = {}
+                for i in range(size1):
+                    ind1  = coldict[lhs1.getVar(i).VarName]
+                    coef1 = lhs1.getCoeff(i)
+                    row1dict[ind1] = coef1 
+                    ind2  = coldict[lhs2.getVar(i).VarName]
+                    coef2    = lhs2.getCoeff(i)
+                    row2dict[ind2] = coef2
+                    
+                #
+                # Compute the angle.  TODO: Make this calculation more
+                # precise.  Consider Kahan summation, and avoid adding
+                # big numbers and much smaller ones.
+                #
+                dotprod  = 0
+                norm1    = 0
+                norm2    = 0
+                skip     = False
+                for i in range(size1):
+                    ind1  = coldict[lhs1.getVar(i).VarName]
+                    if ind1 in row2dict:
+                        ind2 = coldict[lhs2.getVar(i).VarName]
+                        dotprod += row1dict[ind1]*row2dict[ind2]
+                        norm1   += row1dict[ind1]**2
+                        norm2   += row2dict[ind2]**2
+                    else:  # Intersecting variables differ; nothing to see here
+                        skip=True
+                        break
+                
+                if skip:  # Early exit due to index or coeff mismatch
+                    continue
+                norm1 = math.sqrt(norm1)    
+                norm2 = math.sqrt(norm2)
+                #
+                # Normalize the tolerance in the test; want the same
+                # result for vectors u and v and 1000u and 1000v
+                #
+                if abs(abs(dotprod) - norm1*norm2) > partol*norm1:
+                    continue
+                #
+                # Found two almost parallel rows.
+                #
+                almostparcount += 1
+                almostparrowlist.append((bucket[k], bucket[j]))
+                if howmany <= 0 or almostparcount < howmany:
+                    continue
+                quittingtime=True
+                break                       # Exit for j loop
+            if quittingtime:
+                break                       # Exit for k loop
+        if quittingtime:
+            break                           # Exit for bucket loop
+    return almostparrowlist, explmodel
+                                     
 
                 
 #
