@@ -5,6 +5,7 @@ import argparse
 import sys
 import os
 import math
+import time
 #
 #   Ill conditioning explainer.   If the model has basis statuses, it will
 #   use them, computing the factorization if needed.   If no basis statuses
@@ -27,6 +28,7 @@ DEFAULT    = 0              # method choices.  Default = no regularization.
 ANGLES     = 1              # TODO: need to add this.
 LASSO      = 2              # One norm regularization.
 RLS        = 3              # Two norm regularization. TODO: Need to add this.
+ZEROTOL    = 1e-13      
 
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
@@ -166,6 +168,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #   them, as they are the certificate of ill conditioning.
 #
     yvals     = []
+    yvaldict  = {}
     yvars     = None
     if expltype == BYROWS:
         yvars     = explmodel.getVars()[0:nbas]
@@ -205,21 +208,23 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 yval     = yv.X
                 yname    = yv.VarName
                 
-            if abs(yval) < 1e-13:             # TODO: make this tol relative
+            if abs(yval) < ZEROTOL:             # TODO: make this tol relative
                                               # based on max row coeff.
                 delcons.append(rconsdict[yname])  # To be filtered out.
             else:
                 print("Include constraint ", yname)     #dbg
-                yvals.append(abs(yval))
-                thiscon = rconsdict[yname]
-                thiscon.ConstrName = ("(mult=" + str(yval) + ")") + \
-                    thiscon.ConstrName
+#                yvals.append(abs(yval))  TODO: should be able to remove
+                thiscon            = rconsdict[yname]
+                explname           = "(mult=" + str(yval) + ")" + \
+                                     thiscon.ConstrName
+                yvaldict[explname] = abs(yval)
+                thiscon.ConstrName = explname
                 # Inf. Certificate contribution to this constraint.
                 combinedlhs.add(resmodel.getRow(thiscon), yval)
             count += 1           # do we actually need this?
                   
         resmodel.addLConstr(combinedlhs, GRB.LESS_EQUAL, GRB.INFINITY, \
-                            "Combined_Row")  
+                            "GRB_Combined_Row")  
         resmodel.remove(delcons)
         resmodel.update()
 #
@@ -244,6 +249,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         print("Vector matrix product of certificate of ill conditioning" + \
               " and basis:")
         print(resmodel.getRow(combinedcon))
+        refine_row_output(resmodel, yvaldict)
     else:              # Column based explanation
         yvars       = explmodel.getVars()[0:nbas]
         resmodel    = explmodel.copy()
@@ -282,9 +288,11 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # Don't include relaxation variables.
                 #
                 print("Include variable ", yname)       #dbg
-                yvals.append(abs(yval))
-                thisvar = rvarsdict[yv.VarName]
-                thisvar.VarName = ("(mult=" + str(yval) + ")") + yname
+                # yvals.append(abs(yval)) TODO: should be able to remove
+                thisvar                   = rvarsdict[yv.VarName]
+                explname                  = ("(mult=" + str(yval) + ")") + yname
+                thisvar.VarName           = explname
+                yvaldict[explname]        = abs(yval)
                 thiscol   = resmodel.getCol(thisvar)
                 coefflist = []
                 conlist   = []
@@ -319,6 +327,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         resmodel.remove(rcons[len(rcons) - 1])
         if splitfreevars:
             resmodel.remove(rcons[len(rcons) - 2])
+        resmodel.update()
+        refine_col_output(resmodel, yvaldict)
         #
         # Done with column specific part of explanation.
         #
@@ -337,8 +347,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #
     print("--------------------------------------------------------")
     print("Ill conditioning explanation written to file ", filename)
-    print("Maximum absolute multiplier value: ", str(max(yvals))) 
-    print("Minimum absolute multiplier value: ", str(min(yvals))) 
+    print("Maximum absolute multiplier value: ", str(max(yvaldict.values()))) 
+    print("Minimum absolute multiplier value: ", str(min(yvaldict.values()))) 
     print("--------------------------------------------------------")
     return ([], [], None)       # Compatibility with method=ANGLES
 #
@@ -617,7 +627,7 @@ def splitquadexpr(quadexpr, newvardict):
 #   values <= 0 indicate report all.
 #
 def angle_explain(model, howmany=1, partol=1e-6):
-    import pdb; pdb.set_trace()
+#    import pdb; pdb.set_trace()
     modcons = model.getConstrs()
     modvars = model.getVars()
     explmodel, splitvardict = extract_basis(model, modvars, modcons, \
@@ -666,9 +676,9 @@ def angle_explain(model, howmany=1, partol=1e-6):
             var  = rowlhs.getVar(j)
             coef = rowlhs.getCoeff(j)
             if abs(coef) > partol:
-                varbit = coldict[var.VarName] % modval
+                varbit = coldict[var.VarName] % (modval - 1)
                 rowhashdict[con.ConstrName] |= (1 << varbit)
-        bucketlists[rowhashdict[con.ConstrName] % modval].append(con)
+        bucketlists[rowhashdict[con.ConstrName] % (modval - 1)].append(con)
     #
     # Check the matrix rows in the same bucket to see if they are
     # almost parallel.
@@ -676,6 +686,7 @@ def angle_explain(model, howmany=1, partol=1e-6):
     almostparcount   = 0
     almostparrowlist = []
     quittingtime     = False
+    starttime        = time.time()    
     for bucket in bucketlists:
         for k in range(len(bucket)):
             lhs1  = explmodel.getRow(bucket[k])
@@ -744,6 +755,8 @@ def angle_explain(model, howmany=1, partol=1e-6):
         if quittingtime:
             break                           # Exit for bucket loop
 
+    endtime = time.time()
+    print("Time for main row based loop = ", endtime - starttime)
     #
     # Now look for almost parallel columns.   Hash the rows in a smaller
     # manner, except this time the bit values are based on row indices
@@ -756,15 +769,16 @@ def angle_explain(model, howmany=1, partol=1e-6):
             con  = col.getConstr(i)
             coef = col.getCoeff(i)
             if abs(coef) > partol:
-                varbit = rowdict[con.ConstrName] % modval
+                varbit = rowdict[con.ConstrName] % (modval - 1)
                 colhashdict[var.VarName] |= (1 << varbit)
-        bucketlists[colhashdict[var.VarName] % modval].append(var)
+        bucketlists[colhashdict[var.VarName] % (modval - 1)].append(var)
     #
     # Check the matrix columns in the same bucket to see if they are
     # almost parallel.
     #
     almostparcollist = []
     quittingtime     = False
+    starttime        = time.time()
     for bucket in bucketlists:
         for k in range(len(bucket)):
             col1  = explmodel.getCol(bucket[k])
@@ -833,12 +847,120 @@ def angle_explain(model, howmany=1, partol=1e-6):
         if quittingtime:
             break                           # Exit for bucket loop
  
-        
+    endtime = time.time()
+    print("Time for main column based loop = ", endtime - starttime)
+    
     return almostparrowlist, almostparcollist, explmodel
-                                     
 
+
+
+
+#                                     
+#   Improve the readability of the output
+#   1) List the constraints in the explanation sorted by largest
+#      absolute row multiplier first. 
+#   
+def refine_row_output(model, absrowmultdict):
+#
+#   model is the explainer model, not the original one.
+#   This routine modifies the model, with the constraints sorted in
+#   descending order of the values in the absrowmultdict dictionary.
+#
+    import pdb; pdb.set_trace()
+    condict       = {}
+    #
+    # Skip the combined constraint (the last one); it has no multiplier
+    #
+    cons          = model.getConstrs()[0:model.numConstrs - 1]
+    concnt        = 0
+    for c in cons:
+        condict[c.ConstrName] = c
+        concnt += 1
+    #
+    # Sort the dictionary by absolute row multiplier value from
+    # highest to lowest.  Dictionaries cannot be sorted directly,
+    # so we use the sorted function to obtain a list of tuples
+    # sorted by the dictionary value, then transform that list of
+    # tuples back into a dictionary.  Details are at
+    # https://www.freecodecamp.org/news/sort-dictionary-by-value-in-python/
+    #
+    sorteddict = dict(sorted(absrowmultdict.items(), key=lambda x:x[1], \
+                             reverse=True))
+    #
+    # Add the constraints in sorted order to the end of the model, then
+    # remove their duplicates in unsorted order that are the first concnt
+    # constraints
+    #
+    for conname in sorteddict.keys():
+        contoadd = condict[conname]
+        lhs      = model.getRow(contoadd)
+        model.addConstr(lhs, contoadd.sense, contoadd.rhs, \
+                        name=contoadd.ConstrName)
+    model.remove(cons[0:concnt])
+    model.update()
+    #
+    # Model constraints will now be listed by largest absolute multiplier
+    # value first.
+    #
+        
+
+#                                     
+#   Improve the readability of the output
+#   1) List the variables in the explanation sorted by largest
+#      absolute column multiplier first. 
+#   
+def refine_col_output(model, abscolmultdict):
+#
+#   model is the explainer model, not the original one.
+#   This routine modifies the model, with the variables sorted in
+#   descending order of the values in the abscolmultdict dictionary.
+#
+    import pdb; pdb.set_trace()
+    vardict       = {}
+    #
+    # Skip the combined column (the last one); it has no multiplier
+    #
+    vars          = model.getVars()[0:model.numVars - 1]
+    varcnt        = len(vars)
+    for v in vars:
+        vardict[v.VarName] = v
+    #
+    # Sort the dictionary by absolute col multiplier value from
+    # highest to lowest.  Dictionaries cannot be sorted directly,
+    # so we use the sorted function to obtain a list of tuples
+    # sorted by the dictionary value, then transform that list of
+    # tuples back into a dictionary.  Details are at
+    # https://www.freecodecamp.org/news/sort-dictionary-by-value-in-python/
+    #
+    sorteddict = dict(sorted(abscolmultdict.items(), key=lambda x:x[1], \
+                             reverse=True))
+    #
+    # Add the variables in sorted order to the end of the model, then
+    # remove their duplicates in unsorted order that are the first varcnt
+    # variables
+    #
+    for varname in sorteddict.keys():
+        vartoadd = vardict[varname]
+        model.addVar(lb=vartoadd.lb, ub=vartoadd.ub, \
+                     column=model.getCol(vartoadd), name=vartoadd.VarName)
+    model.remove(vars[0:varcnt])
+    model.update()
+    #
+    # Model variables will now be listed by largest absolute multiplier
+    # value first.
+    #
+    
                 
 #
 #   TODO: include Skeel condition number calculation
 #
     
+
+#
+#   Debug routine
+#
+def bucketinfo(bucketlists):
+    histogram = []
+    for bucket in bucketlists:
+        histogram.append(len(bucket))
+    return histogram
