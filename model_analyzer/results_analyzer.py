@@ -866,7 +866,7 @@ def refine_row_output(model, absrowmultdict):
 #   This routine modifies the model, with the constraints sorted in
 #   descending order of the values in the absrowmultdict dictionary.
 #
-    import pdb; pdb.set_trace()
+#    import pdb; pdb.set_trace()
     condict       = {}
     #
     # Skip the combined constraint (the last one); it has no multiplier
@@ -915,7 +915,7 @@ def refine_col_output(model, abscolmultdict):
 #   This routine modifies the model, with the variables sorted in
 #   descending order of the values in the abscolmultdict dictionary.
 #
-    import pdb; pdb.set_trace()
+#    import pdb; pdb.set_trace()
     vardict       = {}
     #
     # Skip the combined column (the last one); it has no multiplier
