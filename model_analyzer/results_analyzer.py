@@ -1,5 +1,6 @@
 import gurobipy as gp
 from gurobipy import GRB
+import numpy as np
 from common import *
 import argparse
 import sys
@@ -25,16 +26,17 @@ SOLVEMIP   = 2
 BYROWS     = 1              # expltype choices
 BYCOLS     = 2
 DEFAULT    = 0              # method choices.  Default = no regularization.
-ANGLES     = 1              # TODO: need to add this.
+ANGLES     = 1              
 LASSO      = 2              # One norm regularization.
 RLS        = 3              # Two norm regularization. TODO: Need to add this.
 ZEROTOL    = 1e-13      
 
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
-                  relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT ):
+                  relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT, \
+                  smalltol=1e-13):
 #
-#   Help function info
+#   Help function info  TODO: add last two arguments.
 #    
     '''Ill conditioning explainer.   Any basis statuses, in the model
        will be used, computing the factorization if needed.   If no statuses
@@ -74,7 +76,6 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     splitfreevars = method == LASSO or method == RLS
     explmodel, splitvardict = extract_basis(model, modvars, modcons, \
                                             expltype, splitfreevars)
-    explmodel.update()           # TODO; should be able to remove this.
     resmodel  = None
     kappastats(model, data, KappaExact)
     explmodel.write("explmodel.lp")          # debug only
@@ -170,6 +171,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     yvals     = []
     yvaldict  = {}
     yvars     = None
+    macheps  = np.finfo(float).eps
     if expltype == BYROWS:
         yvars     = explmodel.getVars()[0:nbas]
         resmodel  = model.copy()
@@ -207,9 +209,11 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             else:
                 yval     = yv.X
                 yname    = yv.VarName
+
+            thiscon  = rconsdict[yname]
+            rownorm  = L1_rownorm(resmodel, thiscon)
                 
-            if abs(yval) < ZEROTOL:             # TODO: make this tol relative
-                                              # based on max row coeff.
+            if abs(yval) < max(smalltol, rownorm*macheps):
                 delcons.append(rconsdict[yname])  # To be filtered out.
             else:
                 print("Include constraint ", yname)     #dbg
@@ -280,8 +284,11 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             else:
                 yval     = yv.X
                 yname    = yv.VarName
-            if abs(yval) < 1e-13:
-                # TODO: make this tol relative based on max row coeff.
+
+            thisvar = rvarsdict[yname]
+            colnorm = L1_colnorm(resmodel, thisvar)
+            
+            if abs(yval) < max(smalltol, colnorm*macheps):
                 delvars.append(rvarsdict[yv.VarName])  # To be filtered out.
             else:
                 #
@@ -950,7 +957,36 @@ def refine_col_output(model, abscolmultdict):
     # value first.
     #
     
-                
+
+#
+#   L1 norm of a specific constraint in a model.
+#    
+def L1_rownorm(model, con):
+    lhs = model.getRow(con)
+    normvec = []
+    for j in range(lhs.size()):
+        normvec.append(lhs.getCoeff(j))
+    result = L1_norm(normvec)
+    return result
+
+#
+#   L1 norm of a specific variable in a model.
+#    
+def L1_colnorm(model, var):
+    col = model.getCol(var)
+    normvec = []
+    for j in range(col.size()):
+        normvec.append(col.getCoeff(j))
+    result = L1_norm(normvec)
+    return result    
+#
+#   L1 norm of an arbitrary vector
+#
+def L1_norm(vec):
+    sum = 0.0
+    for v in vec:
+        sum += abs(v)
+    return sum
 #
 #   TODO: include Skeel condition number calculation
 #
