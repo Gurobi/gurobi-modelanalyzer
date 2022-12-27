@@ -17,24 +17,24 @@ import time
 #   of -1 decides based on model size.
 #
 
-BASIC      =  0             # VBasis status IDs
-AT_LB      = -1
-SUPERBASIC = -3
-SOLVELP    = 0              # relobjtype choices
-SOLVEQP    = 1
-SOLVEMIP   = 2
-BYROWS     = 1              # expltype choices
-BYCOLS     = 2
-DEFAULT    = 0              # method choices.  Default = no regularization.
-ANGLES     = 1              
-LASSO      = 2              # One norm regularization.
-RLS        = 3              # Two norm regularization. TODO: Need to add this.
-ZEROTOL    = 1e-13      
+BASIC       =  0             # VBasis status IDs
+AT_LB       = -1
+SUPERBASIC  = -3
+SOLVELP     = 0              # relobjtype choices
+SOLVEQP     = 1
+SOLVEMIP    = 2
+BYROWS      = 1              # expltype choices
+BYCOLS      = 2
+DEFAULT     = 0              # method choices.  Default = no regularization.
+ANGLES      = 1              
+LASSO       = 2              # One norm regularization.
+RLS         = 3              # Two norm regularization. TODO: Need to add this.
+DEFSMALLTOL = 1e-13      
 
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                   relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT, \
-                  smalltol=ZEROTOL):
+                  smalltol=DEFSMALLTOL):
 #
 #   Help function info  TODO: add last two arguments.
 #    
@@ -217,10 +217,17 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 yval     = yv.X
                 yname    = yv.VarName
 
+            zerotol = smalltol
             thiscon  = rconsdict[yname]
             rownorm  = L1_rownorm(resmodel, thiscon)
+            if rownorm > 0.0:      # Empty lhs is possible
+                if smalltol == DEFSMALLTOL:
+                    zerotol = min(smalltol, 1/(10*rownorm))
+                    if zerotol < macheps:
+                        zerotol = 0.0
+
                 
-            if abs(yval) < smalltol:
+            if abs(yval) <= zerotol:
                 delcons.append(rconsdict[yname])  # To be filtered out.
             else:
                 print("Include constraint ", yname)     #dbg
@@ -294,8 +301,21 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 
             thisvar = rvarsdict[yname]
             colnorm = L1_colnorm(resmodel, thisvar)
-            
-            if abs(yval) < max(smalltol, colnorm*macheps):
+#
+#           By default, with really large row values, we try to capture
+#           the significance of even really small row multipliers.
+#           But if caller specifies a non default tolerance, we don't
+#           overrule them regardless of the presence of really large
+#           coefficients that might be missed due to their choice of
+#           small multiplier tolerance.
+#           
+            if smalltol == DEFSMALLTOL:
+                zerotol = min(smalltol, 1/colnorm)
+                if zerotol < macheps:
+                    zerotol = 0.0
+            else:
+                zerotol = smalltol
+            if abs(yval) < zerotol:
                 delvars.append(rvarsdict[yv.VarName])  # To be filtered out.
             else:
                 #
@@ -432,92 +452,6 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
 
     build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo, \
                     modeltype)
-#    if modeltype == BYROWS:
-    if False:
-        explvardict = {}
-        for var in modvars:          # structural basic variables
-            remove = 0
-            if var.VBasis != BASIC:
-                continue
-            col = model.getCol(var)
-            varlist  = []
-            coeflist = []
-            length   = col.size()
-            if length == 1:             # record column singleton
-                CSinginfo.append((col.getConstr(0), var, col.getCoeff(0)))
-            for i in range(length):
-                coeff = col.getCoeff(i)
-                con   = col.getConstr(i)
-                lhs   = model.getRow(con)
-                if lhs.size() == 1:  # record row singleton
-                    RSinginfo.append((con, var, lhs.getCoeff(0)))
-                vname = con.ConstrName
-                if not vname in explvardict:
-                    explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
-                                                          name = vname)
-                varlist.append(explvardict[vname])
-                coeflist.append(coeff)
-            
-            lhs = gp.LinExpr(coeflist, varlist)
-            explmodel.addConstr(lhs == 0, name=var.VarName)
-
-        for con in modcons:          # slack basic variables
-            if con.CBasis != BASIC:
-                continue
-            if con.Sense == '>':
-                coeff = -1.0
-            else:
-                coeff = 1.0
-            vname = con.ConstrName
-            if not vname in explvardict:
-                explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
-                                                      name = vname)
-            explmodel.addConstr(coeff*explvardict[vname] == 0, \
-                                name="slack_" + con.ConstrName)
-            #
-            # Slacks are column singletons by definition; treat them as
-            # part of column singleton diagonal matrix even if also a row
-            # singleton.
-            #
-            CSinginfo.append((con, None, coeff))
-#    else:          # BYCOLS; assumes modeltype has been checked by caller
-    elif False: 
-        explcondict = {}
-        for con in modcons:
-            #
-            # Constraint initialization for building explainer model by col
-            #
-            explcondict[con.ConstrName] = \
-                explmodel.addConstr(0, GRB.EQUAL, 0, name=con.ConstrName)
-
-        #
-        # Structural basic variables.  The column from the original model
-        # needs to reference the constraint in the explainer model, not
-        # the original model.
-        #
-        for var in modvars:          
-            if var.VBasis != BASIC:
-                continue
-            col = model.getCol(var)
-            for k in range(col.size()):
-                colcon = col.getConstr(k)
-                colcon = explcondict[colcon.ConstrName]
-            explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
-                             column=col)
-        #
-        #   Structural variables done.  Now do the basic slack variables
-        #
-        for con in modcons:          # slack basic variables
-            if con.CBasis != BASIC:
-                continue
-            if con.Sense == '>':
-                coeff = -1.0
-            else:
-                coeff = 1.0
-            vname = "slack_" + con.ConstrName
-            col = gp.Column([coeff], [explcondict[con.ConstrName]])
-            explmodel.addVar(obj=0.0, lb = -float('inf'), name=vname, \
-                             column=col)
 #
 #   Check for special cases where ill conditioning resides just in the
 #   the row or column singleton matrices D1 or D2 (i.e. max to min diagonal
