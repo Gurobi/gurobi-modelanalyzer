@@ -351,7 +351,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             resmodel.remove(dv)
             
         resmodel.update()
-        resmodel.addVar(name="Combined_Column", column=combinedcol)
+        resmodel.addVar(name="GRB_Combined_Column", column=combinedcol)
         rcons = resmodel.getConstrs()
         #
         # e'x = 1 is not in explanation
@@ -460,7 +460,8 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
     CON   = 0
     VAR   = 1
     COEFF = 2
-    if len(RSinginfo) > 1:
+    # TODO: consolidate as much code as possible in this if/elif block.
+    if modeltype == BYROWS and len(RSinginfo) > 1:
         maxrat   = 0
         maxcoeff = 0
         mincoeff = float('inf')
@@ -468,7 +469,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
         minvar   = None
         maxcon   = None
         mincon   = None
-        for diag in RSinginfo:
+        for diag in RSinginfo:       
             t = abs(diag[COEFF])
             if t > maxcoeff:
                 maxcoeff = t
@@ -490,8 +491,11 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
             build_explmodel(model, explmodel, [minvar, maxvar], \
                            [mincon, maxcon], None, None, BYROWS)
             #
-            # The 2x2 matrix is of the form  a1  0
-            #                                0  a2
+            #
+            # The 2x2 matrix is of the form  a1  0 |  0...0
+            #                                0  a2 |  0...0
+            #                                --------------
+            #                                  A1  |   A2   
             # where a1 and a2 are the min or max diagonals.
             # The associated feasrelax model has numerous alterate optimal
             # solutions with minimum relaxation value 1.0.  We seek the one
@@ -499,6 +503,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
             # so we fix the multipliers to the optimal solution with both
             # multipliers at nonzero values.
             #
+            
             denom   = mincoeff + maxcoeff
             minmult = mincoeff/denom
             maxmult = maxcoeff/denom
@@ -513,7 +518,61 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
                 else:
                     var.LB = minmult
                     var.UB = minmult
-                
+    elif modeltype == BYCOLS and len(CSinginfo) > 1:
+        maxrat   = 0
+        maxcoeff = 0
+        mincoeff = float('inf')
+        maxvar   = None
+        minvar   = None
+        maxcon   = None
+        mincon   = None
+        for diag in CSinginfo:       
+            t = abs(diag[COEFF])
+            if t > maxcoeff:
+                maxcoeff = t
+                maxvar = diag[VAR]
+                maxcon = diag[CON]
+            if t < mincoeff:
+                mincoeff = t
+                minvar = diag[VAR]
+                mincon = diag[CON]
+        assert t > 0                   # debug
+        if maxcoeff/mincoeff > condthresh:
+            #
+            # Column singleton matrix D2 is ill conditioned by itself.  Just use
+            # the 2x2 matrix associated with the max and min diagonal elements
+            # for the explanation
+            #
+            explmodel.dispose()
+            explmodel   = gp.Model("rowsingleton_basismodel")
+            build_explmodel(model, explmodel, [minvar, maxvar], \
+                           [mincon, maxcon], None, None, BYROWS)
+            #
+            # The 2x2 matrix is of the form  a1  0 | A2(1,.)
+            #                                0  a2 | A2(2,.) 
+            #                                --------------
+            #                                0   0  |   A3 
+            # where a1 and a2 are the min or max diagonals.
+            # The associated feasrelax model has numerous alterate optimal
+            # solutions with minimum relaxation value 1.0.  We seek the one
+            # where both rows of the matrix have positive multipliers,
+            # so we fix the multipliers to the optimal solution with both
+            # multipliers at nonzero values.
+            #
+            denom   = mincoeff + maxcoeff
+            minmult = mincoeff/denom
+            maxmult = maxcoeff/denom
+            explmodel.update()
+            for var in explmodel.getVars():
+                thiscol = explmodel.getCol(var)
+                coeff = thiscol.getCoeff(0)
+                if coeff < maxcoeff:
+                    var.LB = maxmult
+                    var.UB = maxmult
+                else:
+                    var.LB = minmult
+                    var.UB = minmult
+
 #
 #   B'y = 0 or By = 0 constraints are done.   All variables are now created, so
 #   add the e'y = 1 constraint and we are done.  This is the same,
@@ -547,6 +606,11 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
 def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     modeltype):
     if modeltype == BYROWS:
+        #
+        #   B'y = 0         
+        #   e'y = 1         // normalization of y != 0 constraint
+        #   y free
+        #
         explvardict = {}
         modconlist = []
         for con in modcons:
@@ -558,11 +622,11 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             col = model.getCol(var)
             varlist  = []
             coeflist = []
-            len      = col.size()
-            if len == 1:             # record column singleton
+            collen   = col.size()
+            if collen == 1:          # record column singleton
                 if CSinginfo != None:
                     CSinginfo.append((col.getConstr(0), var, col.getCoeff(0)))
-            for i in range(len):
+            for i in range(collen):
                 coeff = col.getCoeff(i)
                 con   = col.getConstr(i)
                 lhs   = model.getRow(con)
@@ -583,10 +647,10 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         if CSinginfo != None:
             #
             # slack basic variables.  Ignore if processing row or column
-            # singleton model
+            # singleton model (in which case CSinginfo is None).
             #
             for con in modcons:          # slack basic variables
-                if con.CBasis != BASIC:
+                if con.CBasis != BASIC:   # TODO: replace next 6 lines with fn.
                     continue
                 if con.Sense == '>':
                     coeff = -1.0
@@ -605,7 +669,13 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 #
                 CSinginfo.append((con, None, coeff))
     else:          # BYCOLS; assumes modeltype has been checked by caller
+        #
+        #   By = 0        
+        #   e'y = 1         // normalization of y != 0 constraint
+        #   y free
+        #
         explcondict = {}
+        modvarlist  = []
         for con in modcons:
             #
             # Constraint initialization for building explainer model by col
@@ -621,26 +691,50 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         for var in modvars:          
             if var.VBasis != BASIC:
                 continue
-            col = model.getCol(var)
-            for k in range(col.size()):
-                colcon = col.getConstr(k)
-                colcon = explcondict[colcon.ConstrName]
+            col     = model.getCol(var)
+            collen  = col.size()
+            colcons   = []
+            colcoeffs = []
+            if collen == 1:          # record column singleton
+                if CSinginfo != None:
+                    CSinginfo.append((col.getConstr(0), var, col.getCoeff(0)))
+
+            for k in range(collen):
+                thiscon = col.getConstr(k)
+                if thiscon.ConstrName in explcondict:
+                    lhs = model.getRow(thiscon)
+                    if lhs.size() == 1:    # record row singleton
+                        if RSinginfo != None:
+                            RSinginfo.append((thiscon, var, lhs.getCoeff(0)))
+
+                    colcons.append(explcondict[thiscon.ConstrName])
+                    colcoeffs.append(col.getCoeff(k))
+                else:       # Constraint not eligible for explanation    
+                    continue
             explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
-                             column=col)
-        #
-        #   Structural variables done.  Now do the basic slack variables
-        #
-        for con in modcons:          # slack basic variables
-            if con.CBasis != BASIC:
-                continue
-            if con.Sense == '>':
-                coeff = -1.0
-            else:
-                coeff = 1.0
-            vname = "slack_" + con.ConstrName
-            col = gp.Column([coeff], [explcondict[con.ConstrName]])
-            explmodel.addVar(obj=0.0, lb = -float('inf'), name=vname, \
-                             column=col)
+                             column=gp.Column(colcoeffs, colcons))
+        if CSinginfo != None:
+            #
+            # slack basic variables.  Ignore if processing row or column
+            # singleton model (in which case CSinginfo is None).
+            #
+            for con in modcons:          # slack basic variables
+                if con.CBasis != BASIC:   # TODO: replace next 6 lines with fn.
+                    continue
+                if con.Sense == '>':
+                    coeff = -1.0
+                else:
+                    coeff = 1.0
+                vname = "slack_" + con.ConstrName
+                col = gp.Column([coeff], [explcondict[con.ConstrName]])
+                explmodel.addVar(obj=0.0, lb = -float('inf'), name=vname, \
+                                 column=col)
+                #
+                # Slacks are column singletons by definition; treat them as
+                # part of column singleton diagonal matrix even if also a row
+                # singleton.
+                #
+                CSinginfo.append((con, None, coeff))
 
 
 def kappastats(model, data, KappaExact):
