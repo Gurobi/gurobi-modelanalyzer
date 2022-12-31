@@ -29,12 +29,15 @@ DEFAULT     = 0              # method choices.  Default = no regularization.
 ANGLES      = 1              
 LASSO       = 2              # One norm regularization.
 RLS         = 3              # Two norm regularization. TODO: Need to add this.
+CON   = 0
+VAR   = 1
+COEFF = 2
 DEFSMALLTOL = 1e-13      
-
+COMBINEDROW = "\GRB_Combined_Row"
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                   relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT, \
-                  smalltol=DEFSMALLTOL):
+                  smalltol=DEFSMALLTOL, submatrix=False):
 #
 #   Help function info  TODO: add last two arguments.
 #    
@@ -48,7 +51,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                              Basis can be from completed solve or statuses.
                              LP will be optimized if no basis present
        data                  Do not provide.  Used only for Gurobi routines.
-       KappaExact (optional) 1 = display exacti condition number in stats
+       KappaExact (optional) 1 = display exact condition number in stats
                              0 = display less computationally intensive estimate
                             -1 = (default) decide based on problem size.
        prmfile    (optional) Parameter settings file for the subproblem
@@ -82,8 +85,9 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     condthresh = math.pow(2, texp)     
 
     splitfreevars = method == LASSO or method == RLS
-    explmodel, splitvardict = extract_basis(model, modvars, modcons, \
-                                            expltype, splitfreevars, condthresh)
+    explmodel, splitvardict, RSinginfo, CSinginfo = \
+        extract_basis(model, modvars, modcons, expltype, splitfreevars, \
+                      condthresh)
     resmodel  = None
     kappastats(model, data, KappaExact)
     explmodel.write("explmodel.lp")          # debug only
@@ -178,6 +182,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #
     yvals     = []
     yvaldict  = {}
+    ynamedict = {}
     yvars     = None
     if expltype == BYROWS:
         yvars     = explmodel.getVars()[0:nbas]
@@ -242,7 +247,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             count += 1           # do we actually need this?
                   
         resmodel.addLConstr(combinedlhs, GRB.LESS_EQUAL, GRB.INFINITY, \
-                            "\GRB_Combined_Row")  
+                            COMBINEDROW)  
         resmodel.remove(delcons)
         resmodel.update()
 #
@@ -267,7 +272,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         print("Vector matrix product of certificate of ill conditioning" + \
               " and basis:")
         print(resmodel.getRow(combinedcon))
-        refine_row_output(resmodel, yvaldict)
+        refine_row_output(resmodel, yvaldict, resvardict, submatrix)
     else:              # Column based explanation
         yvars       = explmodel.getVars()[0:nbas]
         resmodel    = explmodel.copy()
@@ -457,9 +462,6 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
 #   the row or column singleton matrices D1 or D2 (i.e. max to min diagonal
 #   element exceeds the condition number threshold (~1e+10 for 64 bit doubles)
 #
-    CON   = 0
-    VAR   = 1
-    COEFF = 2
     # TODO: consolidate as much code as possible in this if/elif block.
     if modeltype == BYROWS and len(RSinginfo) > 1:
         maxrat   = 0
@@ -594,7 +596,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
     else:
         explmodel.addConstr(gp.quicksum(explmodel.getVars()) == 1)        
     explmodel.update()
-    return explmodel,splitvardict
+    return explmodel,splitvardict, RSinginfo, CSinginfo
 
 #
 #   Builds the explainer model.  modvars and modcons can be all variables
@@ -661,7 +663,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
                                                           name = vname)
                 explmodel.addConstr(coeff*explvardict[vname] == 0, \
-                                    name="slack_" + con.ConstrName)
+                                    name="GRB_slack_" + con.ConstrName)
                 #
                 # Slacks are column singletons by definition; treat them as
                 # part of column singleton diagonal matrix even if also a row
@@ -725,7 +727,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     coeff = -1.0
                 else:
                     coeff = 1.0
-                vname = "slack_" + con.ConstrName
+                vname = "GRBslack_" + con.ConstrName
                 col = gp.Column([coeff], [explcondict[con.ConstrName]])
                 explmodel.addVar(obj=0.0, lb = -float('inf'), name=vname, \
                                  column=col)
@@ -868,8 +870,8 @@ def angle_explain(model, howmany=1, partol=1e-6):
 #    import pdb; pdb.set_trace()
     modcons = model.getConstrs()
     modvars = model.getVars()
-    explmodel, splitvardict = extract_basis(model, modvars, modcons, \
-                                            None, False)
+    explmodel, splitvardict, junk1, junk2 = extract_basis(model, modvars, \
+                                                          modcons, None, False)
     modcons = explmodel.getConstrs()
     modvars = explmodel.getVars()
     explmodel.remove(modcons.pop(-1))      # Just want basis matrix
@@ -1096,15 +1098,18 @@ def angle_explain(model, howmany=1, partol=1e-6):
 #                                     
 #   Improve the readability of the output
 #   1) List the constraints in the explanation sorted by largest
-#      absolute row multiplier first. 
+#      absolute row multiplier first.
+#   2) If model has row or column singletons, include only selected
+#      submatrices in the explanations (details in comments below).
 #   
-def refine_row_output(model, absrowmultdict):
+def refine_row_output(model, absrowmultdict, modvardict, submatrix):
 #
 #   model is the explainer model, not the original one.
 #   This routine modifies the model, with the constraints sorted in
 #   descending order of the values in the absrowmultdict dictionary.
 #
 #    import pdb; pdb.set_trace()
+    quit = False
     condict       = {}
     #
     # Skip the combined constraint (the last one); it has no multiplier
@@ -1136,14 +1141,151 @@ def refine_row_output(model, absrowmultdict):
                         name=contoadd.ConstrName)
     model.remove(cons[0:concnt])
     model.update()
+
     #
     # Model constraints will now be listed by largest absolute multiplier
     # value first.
     #
+    
+    if submatrix:
+             
+        #
+        # Additional reductions in explanation that may permit it to
+        # be an ill conditioned submatrix of the original basis matrix
+        #
+        #
+        #   B  = D1   0   0            block row 1 (row singletons)
+        #        A1  D2  A2            block row 2 (column singletons)
+        #        A3   0  A4            block row 3 (everything else)
+        #
+        # Note that if we arrive here, preprocessing has already determined
+        # that D1 and D2 individually are not ill conditioned. 
+        #
+        # Reduction #1:  Let w1, w2 and w3 be the multipliers from the
+        # certificate of ill conditioning associated with blocks 1, 2 and
+        # 3 respectively.   If w3'A4 shows that A4 is ill conditioned, then
+        # we know that B is ill conditioned by setting w2 = 0,
+        # w1 = -w3'D1^(-1)A3.   So just output the rows of columns in A4 by
+        # removing the variables and constraints associated with blocks 1
+        # and 2, and use that submatrix as the explanation.
+        #
+        # First, build lists of variables and constraints in the various
+        # blocks.  Original singleton data structures RSinginfo and CSinginfo
+        # were computed during basis extraction, so we need to remove the
+        # associated constraints and variables that are not part of the
+        # actual explanation.  Easier to just rebuild these data structures
+        # than use the original ones.
+        #
+        cons       = model.getConstrs()
+        vars       = model.getVars()
+        D1condict  = {}
+        D1vardict  = {}
+        D2condict  = {}
+        D2vardict  = {}
+        D1coefdict = {}
+        D2coefdict = {}
+        for c in cons:
+            lhs = model.getRow(c)
+            if lhs.size() != 1:
+                continue
+            #
+            # Row singleton found
+            #
+            var = lhs.getVar(0)
+            if var.VarName.startswith("GRB_slack"):
+                #
+                # Treat row singleton slacks as column singletons
+                # rather than row singletons.
+                #
+                D2condict[c.ConstrName] = c
+                D2vardict[var.VarName]  = None
+                D2coefdict[var.VarName] = 1.0      # sign doesn't matter
+            else:               # Row singleton, part of D1
+                D1condict[c.ConstrName]  = c
+                D1vardict[var.VarName]   = var
+                D1coefdict[c.ConstrName] = lhs.getCoeff(0)
+                
+        for var in vars:
+            if var.VarName.startswith("GRB_slack"):
+                continue           # Slack column singletons already processed.
+            col    = model.getCol(var)
+            if col.size() != 1:
+                continue
+            #
+            # Record column singleton info
+            #
+            con = col.getConstr(0)
+            D2condict[con.ConstrName] = con
+            D2condict[var.VarName]    = var
+            D2coefdict[var.VarName]   = col.getCoeff(0)
         
-
+        combocon = None
+        for c in cons:
+            if c.ConstrName == COMBINEDROW:
+                combocon = c
+                break
+        combolhs      = model.getRow(combocon)
+        A4combovars   = []
+        A4combocoeffs = []
+        for j in range(combolhs.size()):
+            var   = combolhs.getVar(j)
+            if var.VarName in D1vardict or var.VarName in D2vardict:
+                continue
+            #
+            # This term of the combined constraint is a column of A4
+            #
+            A4combovars.append(var)
+            A4combocoeffs.append(abs(combolhs.getCoeff(j)))   # contains w3'A4
+        #
+        # We have w3'A4.  We need w3 so we can assess near singularity of A4
+        # But don't bother if unless A4 has positive dimension.
+        #
+        if len(D1condict) + len(D2condict) < model.NumConstrs:
+            w3vals = []
+            for c in cons:
+                if c.ConstrName in D1condict or c.ConstrName in D2condict:
+                    continue
+                if c.ConstrName.startswith(COMBINEDROW):
+                    continue
+                w3vals.append(absrowmultdict[c.ConstrName])
+            w3norm = L1_norm(w3vals)
+            A4combonorm = L1_norm(A4combocoeffs)
+            if A4combonorm/w3norm < 0.01:
+                #
+                # A4 ill conditioned.  Remove the constraints in block rows
+                # 1 and 2, and the variables in D1 and D2 from the explainer
+                # model.
+                #
+                delcons = list(D1condict.values())
+                delcons.append(list(D2condict.values()))
+                delvars = list(D1vardict.values())
+                delvars.append(list(D2vardict.values()))
+                model.remove(delcons)
+                model.update()
+                model.remove(delvars)
+                model.update()
+                #
+                # The remaining explanation model is just the variables
+                # and constraints in A4.   Don't look for additional
+                # refinements.
+                #
+                quit = True
+    if not quit:
+        #
+        # Preprocessing checked whether D1 or D2 individually was ill
+        # conditioned and took care of the explanation.   Here we check
+        # if D1 and D2 combined are ill conditioned even though individually
+        # they are well conditioned (e.g., D1 has all values around 1e-5
+        # while D2 has all values around 1e+5).
+        #
+        quit = True
+        
+            
+    
+    
+            
 #                                     
-#   Improve the readability of the output
+#   Improve the readability of the output.
 #   1) List the variables in the explanation sorted by largest
 #      absolute column multiplier first. 
 #   
@@ -1211,7 +1353,9 @@ def L1_colnorm(model, var):
     result = L1_norm(normvec)
     return result    
 #
-#   L1 norm of an arbitrary vector
+#   L1 norm of an arbitrary vector.  Don't need super accurate
+#   values here, so don't worry about Kahan summation or other
+#   tactics for precision
 #
 def L1_norm(vec):
     sum = 0.0
