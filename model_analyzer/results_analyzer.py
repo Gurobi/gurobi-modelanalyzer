@@ -29,9 +29,9 @@ DEFAULT     = 0              # method choices.  Default = no regularization.
 ANGLES      = 1              
 LASSO       = 2              # One norm regularization.
 RLS         = 3              # Two norm regularization. TODO: Need to add this.
-CON   = 0
-VAR   = 1
-COEFF = 2
+CON         = 0
+VAR         = 1
+COEFF       = 2
 DEFSMALLTOL = 1e-13      
 COMBINEDROW = "\GRB_Combined_Row"
 
