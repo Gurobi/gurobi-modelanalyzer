@@ -34,6 +34,7 @@ VAR         = 1
 COEFF       = 2
 DEFSMALLTOL = 1e-13      
 COMBINEDROW = "\GRB_Combined_Row"
+COMBINEDCOL = "GRB_Combined_Column"
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                   relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT, \
@@ -272,16 +273,16 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         print("Vector matrix product of certificate of ill conditioning" + \
               " and basis:")
         print(resmodel.getRow(combinedcon))
-        refine_row_output(resmodel, yvaldict, resvardict, submatrix)
+        refine_output(resmodel, yvaldict, expltype, submatrix)
     else:              # Column based explanation
         yvars       = explmodel.getVars()[0:nbas]
         resmodel    = explmodel.copy()
-        rvars       = resmodel.getVars()
-        rvarsdict   = {}
+        resvars       = resmodel.getVars()
+        resvardict   = {}
         delvars     = []
         combinedcol = gp.Column()
-        for v in rvars:
-            rvarsdict[v.VarName] = v
+        for v in resvars:
+            resvardict[v.VarName] = v
         for yv in yvars:
             if splitfreevars:
                 #
@@ -299,12 +300,12 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 yval       = yv.X - minusvar.X
                 ynamelen   = len(yv.VarName) - len("_GRBPlus") 
                 yname      = yv.VarName[0:ynamelen]   # original variable name
-                delvars.append(rvarsdict[minusvar.VarName])
+                delvars.append(resvardict[minusvar.VarName])
             else:
                 yval     = yv.X
                 yname    = yv.VarName
 
-            thisvar = rvarsdict[yname]
+            thisvar = resvardict[yname]
             colnorm = L1_colnorm(resmodel, thisvar)
 #
 #           By default, with really large row values, we try to capture
@@ -321,14 +322,14 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             else:
                 zerotol = smalltol
             if abs(yval) < zerotol:
-                delvars.append(rvarsdict[yv.VarName])  # To be filtered out.
+                delvars.append(resvardict[yv.VarName])  # To be filtered out.
             else:
                 #
                 # Don't include relaxation variables.
                 #
                 print("Include variable ", yname)       #dbg
                 # yvals.append(abs(yval)) TODO: should be able to remove
-                thisvar                   = rvarsdict[yv.VarName]
+                thisvar                   = resvardict[yv.VarName]
                 explname                  = ("(mult=" + str(yval) + ")") + yname
                 thisvar.VarName           = explname
                 yvaldict[explname]        = abs(yval)
@@ -356,7 +357,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             resmodel.remove(dv)
             
         resmodel.update()
-        resmodel.addVar(name="GRB_Combined_Column", column=combinedcol)
+        resmodel.addVar(name=COMBINEDCOL, column=combinedcol)
         rcons = resmodel.getConstrs()
         #
         # e'x = 1 is not in explanation
@@ -367,7 +368,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         if splitfreevars:
             resmodel.remove(rcons[len(rcons) - 2])
         resmodel.update()
-        refine_col_output(resmodel, yvaldict)
+        refine_output(resmodel, yvaldict, expltype, submatrix)
         #
         # Done with column specific part of explanation.
         #
@@ -1102,57 +1103,84 @@ def angle_explain(model, howmany=1, partol=1e-6):
 #   2) If model has row or column singletons, include only selected
 #      submatrices in the explanations (details in comments below).
 #   
-def refine_row_output(model, absrowmultdict, modvardict, submatrix):
+def refine_output(model, absmultdict, expltype, submatrix):
 #
 #   model is the explainer model, not the original one.
 #   This routine modifies the model, with the constraints sorted in
-#   descending order of the values in the absrowmultdict dictionary.
+#   descending order of the values in the absmultdict dictionary.
 #
 #    import pdb; pdb.set_trace()
     quit = False
-    condict       = {}
+    if expltype == BYROWS:
+        condict       = {}
+        #
+        # Skip the combined constraint (the last one); it has no multiplier
+        #
+        cons          = model.getConstrs()[0:model.numConstrs - 1]
+        concnt        = 0
+        for c in cons:
+            condict[c.ConstrName] = c
+            concnt += 1
+        #
+        # Sort the dictionary by absolute row multiplier value from
+        # highest to lowest.  Dictionaries cannot be sorted directly,
+        # so we use the sorted function to obtain a list of tuples
+        # sorted by the dictionary value, then transform that list of
+        # tuples back into a dictionary.  Details are at
+        # https://www.freecodecamp.org/news/sort-dictionary-by-value-in-python/
+        #
+        sorteddict = dict(sorted(absmultdict.items(), key=lambda x:x[1], \
+                                 reverse=True))
+        #
+        # Add the constraints in sorted order to the end of the model, then
+        # remove their duplicates in unsorted order that are the first concnt
+        # constraints
+        #
+        for conname in sorteddict.keys():
+            contoadd = condict[conname]
+            lhs      = model.getRow(contoadd)
+            model.addConstr(lhs, contoadd.sense, contoadd.rhs, \
+                            name=contoadd.ConstrName)
+        model.remove(cons[0:concnt])
+        model.update()
+    elif expltype == BYCOLS:
+        vardict       = {}
+        #
+        # Skip the combined column (the last one); it has no multiplier
+        #
+        vars          = model.getVars()[0:model.numVars - 1]
+        varcnt        = len(vars)
+        for v in vars:
+            vardict[v.VarName] = v
+        #
+        # Sort the dictionary by absolute col multiplier value from
+        # highest to lowest.   Analogous to row multiplier sorting described
+        # in detail in the comment in the BYROWS code above
+        #
+        sorteddict = dict(sorted(absmultdict.items(), key=lambda x:x[1], \
+                                 reverse=True))
+        #
+        # Add the variables in sorted order to the end of the model, then
+        # remove their duplicates in unsorted order that are the first varcnt
+        # variables
+        #
+        for varname in sorteddict.keys():
+            vartoadd = vardict[varname]
+            model.addVar(lb=vartoadd.lb, ub=vartoadd.ub, \
+                         column=model.getCol(vartoadd), name=vartoadd.VarName)
+        model.remove(vars[0:varcnt])
+        model.update()
     #
-    # Skip the combined constraint (the last one); it has no multiplier
-    #
-    cons          = model.getConstrs()[0:model.numConstrs - 1]
-    concnt        = 0
-    for c in cons:
-        condict[c.ConstrName] = c
-        concnt += 1
-    #
-    # Sort the dictionary by absolute row multiplier value from
-    # highest to lowest.  Dictionaries cannot be sorted directly,
-    # so we use the sorted function to obtain a list of tuples
-    # sorted by the dictionary value, then transform that list of
-    # tuples back into a dictionary.  Details are at
-    # https://www.freecodecamp.org/news/sort-dictionary-by-value-in-python/
-    #
-    sorteddict = dict(sorted(absrowmultdict.items(), key=lambda x:x[1], \
-                             reverse=True))
-    #
-    # Add the constraints in sorted order to the end of the model, then
-    # remove their duplicates in unsorted order that are the first concnt
-    # constraints
-    #
-    for conname in sorteddict.keys():
-        contoadd = condict[conname]
-        lhs      = model.getRow(contoadd)
-        model.addConstr(lhs, contoadd.sense, contoadd.rhs, \
-                        name=contoadd.ConstrName)
-    model.remove(cons[0:concnt])
-    model.update()
-
-    #
-    # Model constraints will now be listed by largest absolute multiplier
-    # value first.
+    # First refinement complete.  Model constraints or variables will
+    # now be listed by largest absolute multiplier value first.
     #
     
     if submatrix:
              
         #
         # Additional reductions in explanation that may permit it to
-        # be an ill conditioned submatrix of the original basis matrix
-        #
+        # be an ill conditioned submatrix of the original basis matrix.
+        # Details depend on whether explanation is row or column based.
         #
         #   B  = D1   0   0            block row 1 (row singletons)
         #        A1  D2  A2            block row 2 (column singletons)
@@ -1161,15 +1189,8 @@ def refine_row_output(model, absrowmultdict, modvardict, submatrix):
         # Note that if we arrive here, preprocessing has already determined
         # that D1 and D2 individually are not ill conditioned. 
         #
-        # Reduction #1:  Let w1, w2 and w3 be the multipliers from the
-        # certificate of ill conditioning associated with blocks 1, 2 and
-        # 3 respectively.   If w3'A4 shows that A4 is ill conditioned, then
-        # we know that B is ill conditioned by setting w2 = 0,
-        # w1 = -w3'D1^(-1)A3.   So just output the rows of columns in A4 by
-        # removing the variables and constraints associated with blocks 1
-        # and 2, and use that submatrix as the explanation.
-        #
-        # First, build lists of variables and constraints in the various
+        # First, perform tasks common to both row and column based refinements.
+        # Build lists of variables and constraints in the various
         # blocks.  Original singleton data structures RSinginfo and CSinginfo
         # were computed during basis extraction, so we need to remove the
         # associated constraints and variables that are not part of the
@@ -1218,58 +1239,145 @@ def refine_row_output(model, absrowmultdict, modvardict, submatrix):
             D2condict[con.ConstrName] = con
             D2condict[var.VarName]    = var
             D2coefdict[var.VarName]   = col.getCoeff(0)
-        
-        combocon = None
-        for c in cons:
-            if c.ConstrName == COMBINEDROW:
-                combocon = c
-                break
-        combolhs      = model.getRow(combocon)
-        A4combovars   = []
-        A4combocoeffs = []
-        for j in range(combolhs.size()):
-            var   = combolhs.getVar(j)
-            if var.VarName in D1vardict or var.VarName in D2vardict:
-                continue
+
+        if expltype == BYROWS:
             #
-            # This term of the combined constraint is a column of A4
+            #   B  = D1   0   0            block row 1 (row singletons)
+            #        A1  D2  A2            block row 2 (column singletons)
+            #        A3   0  A4            block row 3 (everything else)
             #
-            A4combovars.append(var)
-            A4combocoeffs.append(abs(combolhs.getCoeff(j)))   # contains w3'A4
-        #
-        # We have w3'A4.  We need w3 so we can assess near singularity of A4
-        # But don't bother if unless A4 has positive dimension.
-        #
-        if len(D1condict) + len(D2condict) < model.NumConstrs:
-            w3vals = []
+            # Reduction #1:  Let w1, w2 and w3 be the row multipliers from the
+            # certificate of ill conditioning associated with blocks 1, 2 and
+            # 3 respectively.   If w3'A4 shows that A4 is ill conditioned, then
+            # we know that B is ill conditioned by setting w2 = 0,
+            # w1 = -w3'D1^(-1)A3.   So just output the rows and columns in A4 by
+            # removing the variables and constraints associated with blocks 1
+            # and 2, and use the remaing  submatrix A4 as the explanation.
+            #
+            combocon = None
             for c in cons:
-                if c.ConstrName in D1condict or c.ConstrName in D2condict:
+                if c.ConstrName == COMBINEDROW:
+                    combocon = c
+                    break
+            combolhs      = model.getRow(combocon)
+            A4combovars   = []
+            A4combocoeffs = []
+            for j in range(combolhs.size()):
+                var   = combolhs.getVar(j)
+                if var.VarName in D1vardict or var.VarName in D2vardict:
                     continue
-                if c.ConstrName.startswith(COMBINEDROW):
+                #
+                # This term of the combined constraint is a column of A4
+                #
+                A4combovars.append(var)
+                A4combocoeffs.append(abs(combolhs.getCoeff(j))) # contains w3'A4
+            #
+            # We have w3'A4.  We need w3 so we can assess near singularity 
+            # of A4. But make sure A4 has positive dimension before doing so.
+            #
+            if len(D1condict) + len(D2condict) < model.NumConstrs:
+                w3vals = []
+                for c in cons:
+                    if c.ConstrName in D1condict or c.ConstrName in D2condict:
+                        continue
+                    if c.ConstrName.startswith(COMBINEDROW):
+                        continue
+                    w3vals.append(absmultdict[c.ConstrName])
+                w3norm      = L1_norm(w3vals)
+                A4combonorm = L1_norm(A4combocoeffs)
+                if A4combonorm/w3norm < 0.01:
+                    #
+                    # A4 ill conditioned.  Remove the constraints in block rows
+                    # 1 and 2, and the variables in D1 and D2 from the explainer
+                    # model.
+                    #
+                    delcons = list(D1condict.values())
+                    delcons.append(list(D2condict.values()))
+                    delvars = list(D1vardict.values())
+                    delvars.append(list(D2vardict.values()))
+                    model.remove(delcons)
+                    model.update()
+                    model.remove(delvars)
+                    model.update()
+                    #
+                    # The remaining explanation model is just the variables
+                    # and constraints in A4.   Don't look for additional
+                    # refinements.
+                    #
+                    quit = True
+        elif expltype == BYCOLS:
+            #
+            #   B  = D1   0   0            block row 1 (row singletons)
+            #        A1  D2  A2            block row 2 (column singletons)
+            #        A3   0  A4            block row 3 (everything else)
+            #
+            #
+            # Reduction #1:  Let w1, w2 and w3 be the column multipliers
+            # from the certificate of ill conditioning associated with 
+            # blocks 1, 2 and 3 respectively.   If A4w3 shows that A4
+            # is ill conditioned, then we know that B is ill conditioned
+            # by setting w1 = 0, w2 = -D2^(-1)A2. So just output the rows
+            # and columns in A4 by removing the variables and constraints
+            # associated with blocks 1 and 2, and use the remaining
+            # submatrix A4 as the explanation.
+            #
+            combovar = None
+            for v in vars:
+                if v.VarName == COMBINEDCOL:
+                    combovar = v
+                    break;
+            combocol      = model.getCol(combovar)
+            A4combocons   = []
+            A4combocoeffs = []
+            for i in range(combocol.size()):
+                con = combocol.getConstr(i)
+                if con.ConstrName in D1condict or con.ConstrName in D2condict:
                     continue
-                w3vals.append(absrowmultdict[c.ConstrName])
-            w3norm = L1_norm(w3vals)
-            A4combonorm = L1_norm(A4combocoeffs)
-            if A4combonorm/w3norm < 0.01:
                 #
-                # A4 ill conditioned.  Remove the constraints in block rows
-                # 1 and 2, and the variables in D1 and D2 from the explainer
-                # model.
+                # This term of the dombined column is a row of A4
                 #
-                delcons = list(D1condict.values())
-                delcons.append(list(D2condict.values()))
-                delvars = list(D1vardict.values())
-                delvars.append(list(D2vardict.values()))
-                model.remove(delcons)
-                model.update()
-                model.remove(delvars)
-                model.update()
-                #
-                # The remaining explanation model is just the variables
-                # and constraints in A4.   Don't look for additional
-                # refinements.
-                #
-                quit = True
+                A4combocons.append(con)
+                A4combocoeffs.append(abs(combocol.getCoeff(i)))
+            #
+            # We have A4w3.  We need w3 so we can assess near singularity of
+            # A4.   But make sure  A4 has positive dimension before doing so.
+            #
+            if len(D1vardict) + len(D2vardict) < model.NumVars:
+                w3vals = []
+                for v in vars:
+                    if v.VarName in D1vardict or v.VarName in D2vardict:
+                        continue
+                    if v.VarName.startswith(COMBINEDCOL):
+                        continue
+                    w3vals.append(absmultdict[v.VarName])
+                w3norm      = L1_norm(w3vals)
+                A4combonorm = L1_norm(A4combocoeffs)
+                if A4combonorm/w3norm < 0.01:
+                    #
+                    # A4 ill conditioned.  Remove the constraints and variables
+                    # associated with blocks 1 and 2.
+                    # TODO: If this stays indentical to the corresponding
+                    # code in the BYROWS refinement, put this block into
+                    # a single function.
+                    #
+                    delcons = list(D1condict.values())
+                    delcons.append(list(D2condict.values()))
+                    delvars = list(D1vardict.values())
+                    delvars.append(list(D2vardict.values()))
+                    model.remove(delcons)
+                    model.update()
+                    model.remove(delvars)
+                    model.update()
+                    #
+                    # The remaining explanation model is just the variables
+                    # and constraints in A4.   Don't look for additional
+                    # refinements.
+                    #
+                    quit = True
+
+                                  
+                
+            
     if not quit:
         #
         # Preprocessing checked whether D1 or D2 individually was ill
