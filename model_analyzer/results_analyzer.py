@@ -68,7 +68,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
         return None
-    import pdb; pdb.set_trace()
+#    import pdb; pdb.set_trace()
 
     modvars = model.getVars()      
     modcons = model.getConstrs()   
@@ -236,7 +236,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             if abs(yval) <= zerotol:
                 delcons.append(rconsdict[yname])  # To be filtered out.
             else:
-                print("Include constraint ", yname)     #dbg
+#                print("Include constraint ", yname)     #dbg
 #                yvals.append(abs(yval))  TODO: should be able to remove
                 thiscon            = rconsdict[yname]
                 explname           = "(mult=" + str(yval) + ")" + \
@@ -608,6 +608,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
 #
 def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     modeltype):
+    starttime        = time.time()    
     if modeltype == BYROWS:
         #
         #   B'y = 0         
@@ -615,9 +616,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         #   y free
         #
         explvardict = {}
-        modconlist = []
-        for con in modcons:
-            modconlist.append(con.ConstrName)
+        explcondict = {}
         for var in modvars:          # structural basic variables
             remove = 0
             if var.VBasis != BASIC:
@@ -637,15 +636,43 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     if RSinginfo != None:
                         RSinginfo.append((con, var, lhs.getCoeff(0)))
                 vname = con.ConstrName
-                if vname in modconlist:     
-                    if not vname in explvardict:
-                        explvardict[vname] = \
-                            explmodel.addVar(lb = -float('inf'), name = vname)
-                    varlist.append(explvardict[vname])
-                    coeflist.append(coeff)
+                if not vname in explvardict:
+                    explvardict[vname] = \
+                        explmodel.addVar(lb = -float('inf'), name = vname)
+                varlist.append(explvardict[vname])
+                coeflist.append(coeff)
             
             lhs = gp.LinExpr(coeflist, varlist)
-            explmodel.addConstr(lhs == 0, name=var.VarName)
+            explcondict[var.VarName] = explmodel.addConstr(lhs == 0, \
+                                                           name=var.VarName)
+        #
+        # Remove any constraints and variables that are not in the
+        # modcons and modvars lists, respectively, that were
+        # passed into the routine..  These two lists are for the
+        # original model.  The explainer
+        # model has constraint names based on original model variable names,
+        # and variable names based on original model constraint names.
+        #
+        explmodel.update()
+        modconlist = []
+        for con in modcons:
+            modconlist.append(con.ConstrName)
+        modvarlist = []
+        for var in modvars:
+            modvarlist.append(var.VarName)
+        delcons = []
+        delvars = []
+        for var in explvardict.values():
+            if var.VarName in modconlist:
+                continue
+            delvars.append(var)
+        for con in explcondict.values():
+            if con.ConstrName in modvarlist:
+                continue
+            delcons.append(con)
+        explmodel.remove(delcons)
+        explmodel.remove(delvars)
+        explmodel.update()
 
         if CSinginfo != None:
             #
@@ -738,13 +765,15 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 # singleton.
                 #
                 CSinginfo.append((con, None, coeff))
+    endtime = time.time()
+    print("Time build_explmodel = ", endtime - starttime)
 
 
 def kappastats(model, data, KappaExact):
     kappa      = model.Kappa
     kappaexact = -1
-    if KappaExact == 1 or (model.numConstrs < 1000000 and \
-                           model.numVars    < 1000000):
+    if KappaExact == 1 and (model.numConstrs < 1000000 and \
+                            model.numVars    < 1000000):
         kappaexact = model.KappaExact
     print("--------------------------------------------------------")
     print("Condition number stats for basis for model ", \
