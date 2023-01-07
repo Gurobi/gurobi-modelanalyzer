@@ -2,7 +2,6 @@ import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
 from common import *
-import argparse
 import sys
 import os
 import math
@@ -16,10 +15,11 @@ import time
 #   KappaExact to 1 to force this (in addition to estimated Kappa).  Default
 #   of -1 decides based on model size.
 #
+OFF         = 0
+MODERATE    = 1
+VERBOSE     = 2
+_debug      = OFF            # Change to MODERATE or VERBOSE as needed
 
-BASIC       =  0             # VBasis status IDs
-AT_LB       = -1
-SUPERBASIC  = -3
 SOLVELP     = 0              # relobjtype choices
 SOLVEQP     = 1
 SOLVEMIP    = 2
@@ -28,7 +28,7 @@ BYCOLS      = 2
 DEFAULT     = 0              # method choices.  Default = no regularization.
 ANGLES      = 1              
 LASSO       = 2              # One norm regularization.
-RLS         = 3              # Two norm regularization. TODO: Need to add this.
+RLS         = 3              # Two norm regularization. 
 CON         = 0
 VAR         = 1
 COEFF       = 2
@@ -88,7 +88,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
         return None
-#    import pdb; pdb.set_trace()
+    if _debug != OFF:
+        import pdb; pdb.set_trace()
 
     modvars = model.getVars()      
     modcons = model.getConstrs()   
@@ -110,8 +111,9 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         extract_basis(model, modvars, modcons, expltype, method, \
                       condthresh)
     resmodel  = None
-    kappastats(model, data, KappaExact)
-    explmodel.write("explmodel.lp")          # debug only
+    kappa_stats(model, data, KappaExact)
+    if _debug != OFF:
+        explmodel.write("explmodel.lp")          
 #
 #   Minimize the violations of B'y = 0 constraints.  Do not relax
 #   the e'y == 1 constraints, and the y variables are free, so they
@@ -128,7 +130,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #   use geometric mean scaling.
 #
 #    for v in exvars:
-#        v.VBasis = SUPERBASIC
+#        v.VBasis = GRB.SUPERBASIC
     explmodel.setParam("NumericFocus", 3)
     explmodel.setParam("Method", 0)
     explmodel.setParam("FeasibilityTol", 1e-9)
@@ -169,7 +171,9 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #   Solve configuration completed.  Solve the model that will give us
 #   a certificate of ill conditioning.
 #
-    explmodel.write("explmodel_fr.mps")
+    if _debug != OFF:
+        explmodel.write("explmodel_fr.mps")
+        
     explmodel.optimize()
     status = explmodel.status
     if status in (GRB.INF_OR_UNBD, GRB.INFEASIBLE, GRB.UNBOUNDED, \
@@ -189,12 +193,12 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         structvars = allvars[0:nbas]
         slackvars  = allvars[nbas:]
         for struct in structvars:
-            struct.VBasis = SUPERBASIC
+            struct.VBasis = GRB.SUPERBASIC
         for slack in slackvars:
-            slack.VBasis = AT_LB
+            slack.VBasis = GRB.NONBASIC_LOWER
         cons = explmodel.getConstrs()
         for c in cons:
-            c.CBasis = BASIC
+            c.CBasis = GRB.BASIC
         explmodel.optimize()
         
 #
@@ -256,7 +260,9 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             if abs(yval) <= zerotol:
                 delcons.append(rconsdict[yname])  # To be filtered out.
             else:
-#                print("Include constraint ", yname)     #dbg
+                if _debug == VERBOSE:
+                    print("Include constraint ", yname)
+                    
                 thiscon            = rconsdict[yname]
                 explname           = "(mult=" + str(yval) + ")" + \
                                      thiscon.ConstrName
@@ -280,7 +286,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         for v in resvars:
             resvardict[v.VarName] = v
         for v in model.getVars():
-            if v.vBasis != BASIC:
+            if v.vBasis != GRB.BASIC:
                 delvars.append(resvardict[v.VarName])
         resmodel.remove(delvars)
         resmodel.update()
@@ -346,7 +352,9 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 #
                 # Don't include relaxation variables.
                 #
-                print("Include variable ", yname)       #dbg
+                if _debug == VERBOSE:
+                    print("Include variable ", yname)
+                    
                 explname                  = ("(mult=" + str(yval) + ")") + yname
                 thisvar.VarName           = explname
                 if method == LASSO:  # Bound changed to 0 for Lasso split vars
@@ -607,7 +615,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
     splitvardict = None
     if method == LASSO:
         plusvars     = explmodel.getVars()
-        splitvardict = splitmirroredvars(explmodel)
+        splitvardict = split_mirroredvars(explmodel)
         minusvars    = []
         for v in plusvars:
             minusvar = splitvardict[v.VarName]
@@ -650,7 +658,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         explcondict = {}
         for var in modvars:          # structural basic variables
             remove = 0
-            if var.VBasis != BASIC:
+            if var.VBasis != GRB.BASIC:
                 continue
             col = model.getCol(var)
             varlist  = []
@@ -711,7 +719,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             # singleton model (in which case CSinginfo is None).
             #
             for con in modcons:          # slack basic variables
-                if con.CBasis != BASIC:   # TODO: replace next 6 lines with fn.
+                if con.CBasis != GRB.BASIC:   # TODO: replace next 6 lines with fn.
                     continue
                 if con.Sense == '>':
                     coeff = -1.0
@@ -750,7 +758,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         # the original model.
         #
         for var in modvars:          
-            if var.VBasis != BASIC:
+            if var.VBasis != GRB.BASIC:
                 continue
             col     = model.getCol(var)
             collen  = col.size()
@@ -780,7 +788,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             # singleton model (in which case CSinginfo is None).
             #
             for con in modcons:          # slack basic variables
-                if con.CBasis != BASIC:   # TODO: replace next 6 lines with fn.
+                if con.CBasis != GRB.BASIC: # TODO: replace next 6 lines with fn.
                     continue
                 if con.Sense == '>':
                     coeff = -1.0
@@ -796,11 +804,12 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 # singleton.
                 #
                 CSinginfo.append((con, None, coeff))
-    endtime = time.time()
-    print("Time build_explmodel = ", endtime - starttime)
+    if _debug != OFF:
+        endtime = time.time()
+        print("Time build_explmodel = ", endtime - starttime)
 
 
-def kappastats(model, data, KappaExact):
+def kappa_stats(model, data, KappaExact):
     kappa      = model.Kappa
     kappaexact = -1
     if KappaExact == 1 and (model.numConstrs < 1000000 and \
@@ -834,7 +843,7 @@ def kappastats(model, data, KappaExact):
 #   Tests:  1) Test on a model with only QCs.
 #           2) Test on a model with linear obj terms but no linear constraints.
 #
-def splitmirroredvars(model, varstosplit=None):
+def split_mirroredvars(model, varstosplit=None):
     model.update()
     if varstosplit == None:
         varstosplit = model.getVars()
@@ -871,7 +880,7 @@ def splitmirroredvars(model, varstosplit=None):
     #
     for qcon in model.getQConstrs():
         quadexpr = model.getQCRow(qcon)
-        splitquadexpr(quadexpr, newvardict)
+        split_quadexpr(quadexpr, newvardict)
         #
         # Quadratic expression is updated; need to create a new
         # QC with the update quadexpr and delete the old one.
@@ -885,7 +894,7 @@ def splitmirroredvars(model, varstosplit=None):
     #
     objexpr = model.getObjective()
     if isinstance(objexpr, gp.QuadExpr):
-        splitquadexpr(objexpr, newvardict)
+        split_quadexpr(objexpr, newvardict)
         model.setObjective(objexpr)
     model.update()
     return newvardict
@@ -895,7 +904,7 @@ def splitmirroredvars(model, varstosplit=None):
 #   mirrored variables are provided in newvardict, which maps the
 #   original mirrored variable to its added variable.
     
-def splitquadexpr(quadexpr, newvardict):
+def split_quadexpr(quadexpr, newvardict):
     for k in range(quadexpr.size()):
         xi = quadexpr.getVar1(k)
         xj = quadexpr.getVar2(k)
@@ -928,7 +937,8 @@ def splitquadexpr(quadexpr, newvardict):
 #   values <= 0 indicate report all.
 #
 def angle_explain(model, howmany=1, partol=1e-6):
-#    import pdb; pdb.set_trace()
+    if _debug != OFF:
+        import pdb; pdb.set_trace()
     modcons = model.getConstrs()
     modvars = model.getVars()
     explmodel, splitvardict, junk1, junk2 = extract_basis(model, modvars, \
@@ -1538,7 +1548,7 @@ def L1_norm(vec):
 #
 #   Debug routine
 #
-def bucketinfo(bucketlists):
+def bucket_info(bucketlists):
     histogram = []
     for bucket in bucketlists:
         histogram.append(len(bucket))
