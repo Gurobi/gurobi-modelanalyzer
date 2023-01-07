@@ -40,7 +40,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                   relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT, \
                   smalltol=DEFSMALLTOL, submatrix=False):
 #
-#   Help function info  TODO: add last two arguments.
+#   Help function info  
 #    
     '''Ill conditioning explainer.   Any basis statuses, in the model
        will be used, computing the factorization if needed.   If no statuses
@@ -63,7 +63,21 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                              SOLVEQP
                              SOLVEMIP 
        expltype   (optional) Row (BYROWS) or column (BYCOLS) based computation 
-                             and explanation'''
+                             and explanation
+       method     (optional) Alternate subproblem types
+                             DEFAULT = Basic subproblem (no regularization. 
+                             ANGLES  = Simpler calculation based on inner 
+                                       products.  Potential faster but only 
+                                       finds explanations of 2 rows or columns.
+                             LASSO   = One norm regularization.
+                             RLS     = Two norm regularization.
+       smalltol   (optional) Tolerance below which certificate of ill 
+                             conditioning values are treated as zero.   If
+                             left at default of 1e-13, row or column norm and
+                             machine precision will be incorporated.
+       submatrix  (optional) Whether to postprocess the explanation down to 
+                             a smaller submatrix.  Default is False.
+'''
     
     if (model.IsMIP or model.IsQP or model.IsQCP):
         print("Ill Conditioning explainer only operates on LPs.")
@@ -85,9 +99,9 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     texp       = math.log(feastol,2) - math.log(macheps, 2)
     condthresh = math.pow(2, texp)     
 
-    splitfreevars = method == LASSO or method == RLS
+    splitfreevars = method == LASSO 
     explmodel, splitvardict, RSinginfo, CSinginfo = \
-        extract_basis(model, modvars, modcons, expltype, splitfreevars, \
+        extract_basis(model, modvars, modcons, expltype, method, \
                       condthresh)
     resmodel  = None
     kappastats(model, data, KappaExact)
@@ -237,7 +251,6 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 delcons.append(rconsdict[yname])  # To be filtered out.
             else:
 #                print("Include constraint ", yname)     #dbg
-#                yvals.append(abs(yval))  TODO: should be able to remove
                 thiscon            = rconsdict[yname]
                 explname           = "(mult=" + str(yval) + ")" + \
                                      thiscon.ConstrName
@@ -277,7 +290,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     else:              # Column based explanation
         yvars       = explmodel.getVars()[0:nbas]
         resmodel    = explmodel.copy()
-        resvars       = resmodel.getVars()
+        resvars     = resmodel.getVars()
         resvardict   = {}
         delvars     = []
         combinedcol = gp.Column()
@@ -293,7 +306,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # the free variables have been split.  Make use of the
                 # splitvardict dictionary that connects each pair of
                 # split free variables to do this.  We need to extract
-                # the original model constraint name from the split
+                # the original model variable name from the split
                 # variable names that have the plus/minus GRB suffixes.
                 #
                 minusvar   = splitvardict[yv.VarName]
@@ -328,7 +341,6 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # Don't include relaxation variables.
                 #
                 print("Include variable ", yname)       #dbg
-                # yvals.append(abs(yval)) TODO: should be able to remove
                 thisvar                   = resvardict[yv.VarName]
                 explname                  = ("(mult=" + str(yval) + ")") + yname
                 thisvar.VarName           = explname
@@ -401,7 +413,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #   This is an infeasible model for any nonsingular basis matrix B.
 #
 def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
-                  splitfreevars=False, condthresh=1e+10):
+                  method=DEFAULT, condthresh=1e+10):
 #
 #   Does the model have a factorized basis?  If not, need to solve it
 #   first.
@@ -583,7 +595,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
 #
     explmodel.update()
     splitvardict = None
-    if splitfreevars:
+    if method == LASSO:
         plusvars     = explmodel.getVars()
         splitvardict = splitmirroredvars(explmodel)
         minusvars    = []
@@ -595,7 +607,16 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
         explmodel.addConstr(gp.quicksum(plusvars) - gp.quicksum(minusvars) == 1)
         explmodel.setObjective(gp.quicksum(plusvars) + gp.quicksum(minusvars))
     else:
-        explmodel.addConstr(gp.quicksum(explmodel.getVars()) == 1)        
+        explvars = explmodel.getVars()
+        explmodel.addConstr(gp.quicksum(explvars) == 1)
+        if method == RLS:
+            numvars    = len(explvars)
+            sumsquares = gp.QuadExpr()
+            sumsquares.addTerms(numvars*[1], explvars, explvars)
+            explmodel.setObjective(sumsquares)
+                        
+                            
+            
     explmodel.update()
     return explmodel,splitvardict, RSinginfo, CSinginfo
 
