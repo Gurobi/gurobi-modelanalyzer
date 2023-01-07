@@ -77,6 +77,12 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                              machine precision will be incorporated.
        submatrix  (optional) Whether to postprocess the explanation down to 
                              a smaller submatrix.  Default is False.
+       Returns:              For all method settings except ANGLES, returns
+                             the model that consists of the explanation.  
+                             If the method is ANGLES returns a tuple of the 
+                             list of parallel rows, the list of parallel 
+                             columns, and the model that explains the ill
+                             conditioning.
 '''
     
     if (model.IsMIP or model.IsQP or model.IsQCP):
@@ -318,7 +324,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 yval     = yv.X
                 yname    = yv.VarName
 
-            thisvar = resvardict[yname]
+            thisvar = resvardict[yv.VarName]
             colnorm = L1_colnorm(resmodel, thisvar)
 #
 #           By default, with really large row values, we try to capture
@@ -341,9 +347,10 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # Don't include relaxation variables.
                 #
                 print("Include variable ", yname)       #dbg
-                thisvar                   = resvardict[yv.VarName]
                 explname                  = ("(mult=" + str(yval) + ")") + yname
                 thisvar.VarName           = explname
+                if method == LASSO:  # Bound changed to 0 for Lasso split vars
+                    thisvar.LB = -math.inf  
                 yvaldict[explname]        = abs(yval)
                 thiscol   = resmodel.getCol(thisvar)
                 coefflist = []
@@ -402,7 +409,10 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     print("Maximum absolute multiplier value: ", str(max(yvaldict.values()))) 
     print("Minimum absolute multiplier value: ", str(min(yvaldict.values()))) 
     print("--------------------------------------------------------")
-    return ([], [], None)       # Compatibility with method=ANGLES
+    if method == ANGLES:
+        return ([], [], None)       # Compatibility with method=ANGLES
+    else:
+        return resmodel
 #
 #   For a given basis matrix B from the model provided, create the basis
 #   model:
