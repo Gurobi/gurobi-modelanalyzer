@@ -1,7 +1,7 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-from common import *
+import common as common
 import sys
 import os
 import math
@@ -18,7 +18,7 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = OFF            # Change to MODERATE or VERBOSE as needed
+_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
 
 SOLVELP     = 0              # relobjtype choices
 SOLVEQP     = 1
@@ -110,6 +110,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     explmodel, splitvardict, RSinginfo, CSinginfo = \
         extract_basis(model, modvars, modcons, expltype, method, \
                       condthresh)
+    if explmodel == None:        # Didn't find a basis for original model
+        return None              # Nothing to explain
     resmodel  = None
     kappa_stats(model, data, KappaExact)
     if _debug != OFF:
@@ -139,9 +141,10 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     for con in excons[0:nbas]:
         rowvals = []
         rowlhs  = explmodel.getRow(con)
-        for j in range(rowlhs.size()):
-            rowvals.append(rowlhs.getCoeff(j))
-        freqs = get_vector_frequencies(rowvals, 10)
+        if rowlhs.size() == 0:
+            continue
+        rowvals = [rowlhs.getCoeff(j) for j in range(rowlhs.size())]
+        freqs = common.get_vector_frequencies(rowvals, 10)
         rat = freqs[len(freqs) - 1][0] - freqs[0][0]     # base 10 exponents
         if rat > rowrat:
             rowrat = rat
@@ -154,9 +157,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             col = explmodel.getCol(var)
             if col.size() == 0:
                 continue
-            for i in range(col.size()):
-                colvals.append(col.getCoeff(i))
-            freqs = get_vector_frequencies(colvals, 10)  
+            colvals = [col.getCoeff(i) for i in range(col.size())]
+            freqs = common.get_vector_frequencies(colvals, 10)  
             rat = freqs[len(freqs) - 1][0] - freqs[0][0] # base 10 exponents
             if rat > colrat:
                 colrat = rat
@@ -164,13 +166,13 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             explmodel.setParam("ScaleFlag", 2)
     if prmfile != None:
         explmodel.read(prmfile)
-    explmodel.update()
-    explmodel.feasRelax(relobjtype, splitfreevars, None, None, None, \
+    minrelax = method == LASSO or method == RLS
+    explmodel.feasRelax(relobjtype, minrelax, None, None, None, \
                         excons[0:nbas], [1.0]*nbas)
-#
-#   Solve configuration completed.  Solve the model that will give us
-#   a certificate of ill conditioning.
-#
+    #
+    #   Solve configuration completed.  Solve the model that will give us
+    #   a certificate of ill conditioning.
+    #
     if _debug != OFF:
         explmodel.write("explmodel_fr.mps")
         
@@ -201,11 +203,10 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             c.CBasis = GRB.BASIC
         explmodel.optimize()
         
-#
-#   The y variables were created before calling feasRelax.  Extract
-#   them, as they are the certificate of ill conditioning.
-#
-    yvals     = []
+    #
+    #   The y variables were created before calling feasRelax.  Extract
+    #   them, as they are the certificate of ill conditioning.
+    #
     yvaldict  = {}
     ynamedict = {}
     yvars     = None
@@ -216,18 +217,19 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         rconsdict = {}
         count     = 0
         delcons   = []
-#
-#       The order in which we created variables when extracting 
-#       the explainer problem typically will not match the order of the
-#       constraints in the original model.   So we need to use a dictionary
-#       to map the support of the y vector to the correct constraints
-#       in the computed explanation.
-#
+        #
+        # The order in which we created variables when extracting 
+        # the explainer problem typically will not match the order of the
+        # constraints in the original model.   So we need to use a dictionary
+        # to map the support of the y vector to the correct constraints
+        # in the computed explanation.
+        #
 
         combinedlhs = gp.LinExpr()            # y'A; y is inf. certificate
         for c in rcons:
             rconsdict[c.ConstrName] = c
-        
+
+        suffix_len = len("_GRBPlus")
         for yv in yvars:
             if splitfreevars:
                 #
@@ -241,8 +243,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # variable names that have the plus/minus GRB suffixes.
                 #
                 yval     = yv.X - splitvardict[yv.VarName].X
-                ynamelen = len(yv.VarName) - len("_GRBPlus") 
-                yname    = yv.VarName[0:ynamelen]   # original constr name.
+                yname    = yv.VarName[0:-suffix_len]   # original constr name.
             else:
                 yval     = yv.X
                 yname    = yv.VarName
@@ -276,10 +277,10 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                             COMBINEDROW)  
         resmodel.remove(delcons)
         resmodel.update()
-#
-#       Filter out the nonbasic variables of the original model that appear
-#       in the constraints ih the explainer model.
-#
+        #
+        # Filter out the nonbasic variables of the original model that appear
+        # in the constraints ih the explainer model.
+        #
         delvars    = []
         resvardict = {}
         resvars    = resmodel.getVars()
@@ -290,10 +291,10 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 delvars.append(resvardict[v.VarName])
         resmodel.remove(delvars)
         resmodel.update()
-#
-#       Print the combined value y'B to the screen, including all nonzero
-#       values
-#
+        #
+        # Print the combined value y'B to the screen, including all nonzero
+        # values
+        #
         combinedcon = (resmodel.getConstrs())[resmodel.numConstrs - 1]
         print("Vector matrix product of certificate of ill conditioning" + \
               " and basis:")
@@ -432,15 +433,15 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 #
 def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
                   method=DEFAULT, condthresh=1e+10):
-#
-#   Does the model have a factorized basis?  If not, need to solve it
-#   first.
-#
+    #
+    #   Does the model have a factorized basis?  If not, need to solve it
+    #   first.
+    #
     need_basis = False
     try:
         test = model.Kappa
     except AttributeError as e:
-        need_basis = True     # TODO: handle statuses but no LU case.
+        need_basis = True     
     
     if need_basis:
         #
@@ -461,26 +462,31 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
         except gp.GurobiError as e:
             tmp = 0      # No statuses or factorization; solve from scratch
             
-        model.optimize() #TODO:check status to confirm basis available after solve.
+        model.optimize() 
+        try:       # Confirm basis available after solve.
+            tmp2 = modvars[0].VBasis
+            tmp1 = modvars[0].X
+        except AttributeError as e:    # no basis; no explanation to return
+            return None, None, None, None
         
     m        = model.numConstrs
     n        = model.numVars
-#
-#   Extract the basic structural variables from the model into the model
-#   containing the basis matrix of interest.  Each column of the basis
-#   matrix corresponds to a constraint in the explainer model.  Hence
-#   each row of the basis matrix corresponds to a variable in the explainer
-#   model.
-#   Refinement:  Consider the row and column singletons:
-#   B  = D1   0   0            block row 1 (row singletons)
-#        A1  D2  A2            block row 2 (column singletons)
-#        A3   0  A4            block row 3 (everything else)
-#   Look for special cases where D1 or D2 are individually
-#   ill conditioned (i.e. their ratio of largest to smallest
-#   coefficients exceeds the ill conditioning threshold).
-#   In those cases, just return D1 or D2 as the basis model,
-#   resulting in a much easier computation.
-#
+    #
+    #   Extract the basic structural variables from the model into the model
+    #   containing the basis matrix of interest.  When explaining by rows,
+    #   each column of the basis matrix corresponds to a constraint in the
+    #   explainer model, and each row of the basis matrix corresponds to a
+    #   variable in the explainer model.
+    #   Refinement:  Consider the row and column singletons:
+    #   B  = D1   0   0            block row 1 (row singletons)
+    #        A1  D2  A2            block row 2 (column singletons)
+    #        A3   0  A4            block row 3 (everything else)
+    #   Look for special cases where D1 or D2 are individually
+    #   ill conditioned (i.e. their ratio of largest to smallest
+    #   coefficients exceeds the ill conditioning threshold).
+    #   In those cases, just return D1 or D2 as the basis model,
+    #   resulting in a much easier computation.
+    #
     explmodel   = gp.Model("basismodel")
     RSinginfo    = []            # list of tuples for row singletons
     CSinginfo    = []            # list of tuples for column singletons
@@ -860,6 +866,7 @@ def split_mirroredvars(model, varstosplit=None):
         varname    = v.VarName 
         chgvarname = v.VarName  + "_GRBPlus"
         v.VarName  = chgvarname
+        v.LB       = 0
         col        = model.getCol(v)
         splitcol   = gp.Column()
         coeflist   = []
@@ -868,7 +875,6 @@ def split_mirroredvars(model, varstosplit=None):
             coeflist.append(-col.getCoeff(k))
             conlist.append(col.getConstr(k))
         splitcol.addTerms(coeflist, conlist)
-        v.LB = 0
         newvar = model.addVar(lb=0.0, ub=bnd, obj=-v.obj, vtype=v.Vtype, \
                               name=varname + "_GRBMinus", column=splitcol)
         newvarlist.append(newvar)
@@ -918,10 +924,9 @@ def split_quadexpr(quadexpr, newvardict):
                 # xi(-) * xj(-) term
                 quadexpr.addTerms(qcoef, newvardict[xi.VarName], \
                                       newvardict[xj.VarName])
-        else:                             
-            if xj.varName in newvardict: # xj is split, but xi is not.
-                # xi * xj(-) term
-                quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+        elif xj.varName in newvardict: # xj is split, but xi is not.
+            # xi * xj(-) term
+            quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
 
 
 #
@@ -943,6 +948,8 @@ def angle_explain(model, howmany=1, partol=1e-6):
     modvars = model.getVars()
     explmodel, splitvardict, junk1, junk2 = extract_basis(model, modvars, \
                                                           modcons, None, False)
+    if explmodel == None:             # No basis for original model found.
+        return None, None, None       # Nothing to explain
     modcons = explmodel.getConstrs()
     modvars = explmodel.getVars()
     explmodel.remove(modcons.pop(-1))      # Just want basis matrix
