@@ -18,7 +18,7 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
+_debug      = OFF            # Change to MODERATE or VERBOSE as needed
 
 SOLVELP     = 0              # relobjtype choices
 SOLVEQP     = 1
@@ -295,7 +295,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         # Print the combined value y'B to the screen, including all nonzero
         # values
         #
-        combinedcon = (resmodel.getConstrs())[resmodel.numConstrs - 1]
+        combinedcon = (resmodel.getConstrs())[resmodel.numCon<strs - 1]
         print("Vector matrix product of certificate of ill conditioning" + \
               " and basis:")
         print(resmodel.getRow(combinedcon))
@@ -939,7 +939,8 @@ def split_quadexpr(quadexpr, newvardict):
 #   are almost parallel as well, i.e., the angle is close to 180 degrees.
 #   The howmany parameter controls how many near parallel items to report.
 #   Default is 1; integer values > 1 specify how many to report; integer
-#   values <= 0 indicate report all.
+#   values <= 0 indicate report all.  TODO:  This should be callable
+#   by the user, so it needs help info.
 #
 def angle_explain(model, howmany=1, partol=1e-6):
     if _debug != OFF:
@@ -960,20 +961,13 @@ def angle_explain(model, howmany=1, partol=1e-6):
     # Also set up some dictionaries for hashing calculations.
     #
     modval      = 1 + math.ceil(math.log(sys.maxsize,2))
-    rowdict     = {}
     rowhashdict = {}
-    count       = 0
     for con in modcons:
-        rowdict[con.ConstrName]     = count
         rowhashdict[con.ConstrName] = 0
-        count += 1
-    coldict     = {}
     colhashdict = {}
-    count       = 0
     for var in modvars:
-        coldict[var.VarName] = count
         colhashdict[var.VarName] = 0
-        count += 1
+
     #
     # Look for almost parallel rows.   Hash the rows as follows.
     # For each row define a 64 bit int h[i] such that if variable
@@ -985,16 +979,26 @@ def angle_explain(model, howmany=1, partol=1e-6):
     # below partol; that way we pick up the case where one row is
     # (1 1) and another intersects the same two nonzeros but is
     # (1 1 eps).   We want to flag those as almost parallel, so we
-    # want them to have the same hash value.
+    # want them to have the same hash value.  We do this in a normalized
+    # fashion, so that we will get the same conclusion for (1 1), (1, 1 eps)
+    # and (1000 1000), (1000, 1000, 1000*eps).  Similarly, we don't
+    # consider rows of the form (1e-5, 1e-5, 0) and (1e-5, 1e-5, 1e-7)
+    # almost parallel since they are significantly different in a relative
+    # sense.
     #
     bucketlists = [[] for i in range(modval)]
     for con in modcons:
-        rowlhs = explmodel.getRow(con)
+        rowlhs  = explmodel.getRow(con)
+        normvec = []
+        for j in range(rowlhs.size()):
+            normvec.append(rowlhs.getCoeff(j))
+        rownorm = L1_norm(normvec)
+                       
         for j in range(rowlhs.size()):
             var  = rowlhs.getVar(j)
             coef = rowlhs.getCoeff(j)
-            if abs(coef) > partol:
-                varbit = coldict[var.VarName] % (modval - 1)
+            if abs(coef) > partol*rownorm:
+                varbit = var.index % (modval - 1)
                 rowhashdict[con.ConstrName] |= (1 << varbit)
         bucketlists[rowhashdict[con.ConstrName] % (modval - 1)].append(con)
     #
@@ -1019,32 +1023,30 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 # and norms.  Need to handle the case where two rows intersect
                 # the same variables, but in a different order.
                 #
-                row1dict = {}
-                row2dict = {}
+                row1array = explmodel.numVars*[0.0]
+                norm1     = 0.0
+                #
+                # Treat first row as a dense vector, second row as a sparse one.
+                #
                 for i in range(size1):
-                    ind1  = coldict[lhs1.getVar(i).VarName]
-                    coef1 = lhs1.getCoeff(i)
-                    row1dict[ind1] = coef1 
-                    ind2  = coldict[lhs2.getVar(i).VarName]
-                    coef2    = lhs2.getCoeff(i)
-                    row2dict[ind2] = coef2
-                    
+                    ind1            = lhs1.getVar(i).index
+                    coef1           = lhs1.getCoeff(i) 
+                    row1array[ind1] = coef1
+                    norm1          += coef1**2
                 #
                 # Compute the angle.  TODO: Make this calculation more
                 # precise.  Consider Kahan summation, and avoid adding
                 # big numbers and much smaller ones.
                 #
-                dotprod  = 0
-                norm1    = 0
-                norm2    = 0
+                dotprod  = 0.0
+                norm2    = 0.0
                 skip     = False
-                for i in range(size1):
-                    ind1  = coldict[lhs1.getVar(i).VarName]
-                    if ind1 in row2dict:
-                        ind2 = coldict[lhs2.getVar(i).VarName]
-                        dotprod += row1dict[ind1]*row2dict[ind2]
-                        norm1   += row1dict[ind1]**2
-                        norm2   += row2dict[ind2]**2
+                for i in range(size2):
+                    ind2 = lhs2.getVar(i).index
+                    if row1array[ind2] != 0.0:
+                        coef2    = lhs2.getCoeff(i)
+                        dotprod += row1array[ind2]*coef2
+                        norm2   += coef2**2
                     else:  # Intersecting variables differ; nothing to see here
                         skip=True
                         break
@@ -1073,8 +1075,9 @@ def angle_explain(model, howmany=1, partol=1e-6):
         if quittingtime:
             break                           # Exit for bucket loop
 
-    endtime = time.time()
-    print("Time for main row based loop = ", endtime - starttime)
+    if _debug != OFF:    
+        endtime = time.time()
+        print("Time for main row based loop = ", endtime - starttime)
     #
     # Now look for almost parallel columns.   Hash the rows in a smaller
     # manner, except this time the bit values are based on row indices
@@ -1083,11 +1086,15 @@ def angle_explain(model, howmany=1, partol=1e-6):
     bucketlists = [[] for i in range(modval)]
     for var in modvars:
         col = explmodel.getCol(var)
+        normvec = []
+        for i in range(col.size()):
+            normvec.append(col.getCoeff(i))
+        colnorm = L1_norm(normvec)
         for i in range(col.size()):
             con  = col.getConstr(i)
             coef = col.getCoeff(i)
-            if abs(coef) > partol:
-                varbit = rowdict[con.ConstrName] % (modval - 1)
+            if abs(coef) > partol*colnorm:
+                varbit = con.index % (modval - 1)
                 colhashdict[var.VarName] |= (1 << varbit)
         bucketlists[colhashdict[var.VarName] % (modval - 1)].append(var)
     #
@@ -1111,33 +1118,33 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 # and norms.  Need to handle the case where two columns
                 # intersect the same rows, but in a different order.
                 #
-                col1dict = {}
-                col2dict = {}
-                for i in range(size1):
-                    ind1  = rowdict[col1.getConstr(i).ConstrName]
-                    coef1 = col1.getCoeff(i)
-                    col1dict[ind1] = coef1 
-                    ind2  = rowdict[col2.getConstr(i).ConstrName]
-                    coef2 = col2.getCoeff(i)
-                    col2dict[ind2] = coef2
-                    
+                col1array = row1array
+                col1array = explmodel.numVars*[0.0]
+                norm1     = 0.0
+                for i in range(size1):    # Treat first column as dense vector.
+                    ind1            = col1.getConstr(i).index
+                    coef1           = col1.getCoeff(i)
+                    col1array[ind1] = coef1
+                    norm1          += coef1**2
                 #
                 # Compute the angle.  TODO: Make this calculation more
                 # precise.  Consider Kahan summation, and avoid adding
                 # big numbers and much smaller ones.
                 #
-                dotprod  = 0
-                norm1    = 0
-                norm2    = 0
+                dotprod  = 0.0
+                norm2    = 0.0
                 skip     = False
-                for i in range(size1):
-                    ind1  = rowdict[col1.getConstr(i).ConstrName]
-                    if ind1 in col2dict:
-                        ind2     = rowdict[col2.getConstr(i).ConstrName]
-                        dotprod += col1dict[ind1]*col2dict[ind2]
-                        norm1   += col1dict[ind1]**2
-                        norm2   += col2dict[ind2]**2
-                    else:  # Intersecting variables differ; nothing to see here
+                for i in range(size2):
+                    ind2  = col2.getConstr(i).index
+                    if col1array[ind2] != 0.0:
+                        coef2    = col2.getCoeff(i)
+                        dotprod += col1array[ind2] * coef2
+                        norm2   += coef2**2
+                    else:
+                        #
+                        # Intersecting constraints differ; move along, nothing
+                        # to see here.
+                        #
                         skip=True
                         break
                 
@@ -1164,9 +1171,10 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 break                       # Exit for k loop
         if quittingtime:
             break                           # Exit for bucket loop
- 
-    endtime = time.time()
-    print("Time for main column based loop = ", endtime - starttime)
+
+    if _debug != OFF:
+        endtime = time.time()
+        print("Time for main column based loop = ", endtime - starttime)
     
     return almostparrowlist, almostparcollist, explmodel
 
