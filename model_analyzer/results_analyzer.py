@@ -18,7 +18,8 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = OFF            # Change to MODERATE or VERBOSE as needed
+_debug      = MODERATE       # Change to MODERATE or VERBOSE as needed
+_debugger   = OFF
 
 SOLVELP     = 0              # relobjtype choices
 SOLVEQP     = 1
@@ -89,7 +90,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         print("Ill Conditioning explainer only operates on LPs.")
         return None
     if _debug != OFF:
-        import pdb; pdb.set_trace()
+        if _debugger != OFF:
+            import pdb; pdb.set_trace()
 
     modvars = model.getVars()      
     modcons = model.getConstrs()   
@@ -295,7 +297,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         # Print the combined value y'B to the screen, including all nonzero
         # values
         #
-        combinedcon = (resmodel.getConstrs())[resmodel.numCon<strs - 1]
+        combinedcon = (resmodel.getConstrs())[resmodel.numConstrs - 1]
         print("Vector matrix product of certificate of ill conditioning" + \
               " and basis:")
         print(resmodel.getRow(combinedcon))
@@ -662,8 +664,17 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         #
         explvardict = {}
         explcondict = {}
+        #
+        # Build a dictionary of variables for every constraint in the
+        # original model.   Will remove any variables associated with
+        # constraints not in modcons after the next loop.
+        #
+        for con in model.getConstrs():
+            explvname = con.ConstrName
+            explvardict[explvname] = explmodel.addVar(lb = -float('inf'), \
+                                                      name = explvname)
+        
         for var in modvars:          # structural basic variables
-            remove = 0
             if var.VBasis != GRB.BASIC:
                 continue
             col = model.getCol(var)
@@ -680,44 +691,12 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 if lhs.size() == 1:  # record row singleton
                     if RSinginfo != None:
                         RSinginfo.append((con, var, lhs.getCoeff(0)))
-                vname = con.ConstrName
-                if not vname in explvardict:
-                    explvardict[vname] = \
-                        explmodel.addVar(lb = -float('inf'), name = vname)
-                varlist.append(explvardict[vname])
+                varlist.append(explvardict[con.Constrname])
                 coeflist.append(coeff)
             
             lhs = gp.LinExpr(coeflist, varlist)
             explcondict[var.VarName] = explmodel.addConstr(lhs == 0, \
                                                            name=var.VarName)
-        #
-        # Remove any constraints and variables that are not in the
-        # modcons and modvars lists, respectively, that were
-        # passed into the routine..  These two lists are for the
-        # original model.  The explainer
-        # model has constraint names based on original model variable names,
-        # and variable names based on original model constraint names.
-        #
-        explmodel.update()
-        modconlist = []
-        for con in modcons:
-            modconlist.append(con.ConstrName)
-        modvarlist = []
-        for var in modvars:
-            modvarlist.append(var.VarName)
-        delcons = []
-        delvars = []
-        for var in explvardict.values():
-            if var.VarName in modconlist:
-                continue
-            delvars.append(var)
-        for con in explcondict.values():
-            if con.ConstrName in modvarlist:
-                continue
-            delcons.append(con)
-        explmodel.remove(delcons)
-        explmodel.remove(delvars)
-        explmodel.update()
 
         if CSinginfo != None:
             #
@@ -725,17 +704,14 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             # singleton model (in which case CSinginfo is None).
             #
             for con in modcons:          # slack basic variables
-                if con.CBasis != GRB.BASIC:   # TODO: replace next 6 lines with fn.
+                if con.CBasis != GRB.BASIC: # TODO:replace next 6 lines with fn.
                     continue
                 if con.Sense == '>':
                     coeff = -1.0
                 else:
                     coeff = 1.0
-                vname = con.ConstrName
-                if not vname in explvardict:
-                    explvardict[vname] = explmodel.addVar(lb = -float('inf'),\
-                                                          name = vname)
-                explmodel.addConstr(coeff*explvardict[vname] == 0, \
+                explvname = con.ConstrName
+                explmodel.addConstr(coeff*explvardict[explvname] == 0, \
                                     name="GRB_slack_" + con.ConstrName)
                 #
                 # Slacks are column singletons by definition; treat them as
@@ -743,6 +719,30 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 # singleton.
                 #
                 CSinginfo.append((con, None, coeff))
+        #
+        # The previous two loops iterated over modvars from the original
+        # model.  If modcons is a subset of the original model constraints,
+        # the previous loop may have added variables to the explainer
+        # model corresponding to constraints in the original model
+        # that are not in the modcons array.  Therefore, remove any
+        # variables in the explainer model corresponding to constraints
+        # not in the modcons list passed into the routine.
+        # passed into the routine.  The explainer model has constraint
+        # names based on original model variable names, and variable names
+        # based on original model constraint names.
+        #
+        explmodel.update()
+        if len(modcons) < model.NumConstrs:
+            modconlist = []
+            for con in modcons:
+                modconlist.append(con.ConstrName)
+            delvars = []
+            for explvar in explvardict.values():
+                if explvar.VarName in modconlist:
+                    continue
+                delvars.append(explvar)
+            explmodel.remove(delvars)
+            explmodel.update()
     else:          # BYCOLS; assumes modeltype has been checked by caller
         #
         #   By = 0        
@@ -751,9 +751,12 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         #
         explcondict = {}
         modvarlist  = []
-        for con in modcons:
+        for con in model.getConstrs():
             #
-            # Constraint initialization for building explainer model by col
+            # Constraint initialization for column based explainer model.
+            # Build dictionary of constraints for every constraint
+            # in the original mode. Will remove any constraints associated
+            # with constraints not in modcons after the next loop.
             #
             explcondict[con.ConstrName] = \
                 explmodel.addConstr(0, GRB.EQUAL, 0, name=con.ConstrName)
@@ -776,16 +779,13 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
 
             for k in range(collen):
                 thiscon = col.getConstr(k)
-                if thiscon.ConstrName in explcondict:
-                    lhs = model.getRow(thiscon)
-                    if lhs.size() == 1:    # record row singleton
-                        if RSinginfo != None:
-                            RSinginfo.append((thiscon, var, lhs.getCoeff(0)))
+                lhs = model.getRow(thiscon)
+                if lhs.size() == 1:    # record row singleton
+                    if RSinginfo != None:
+                        RSinginfo.append((thiscon, var, lhs.getCoeff(0)))
 
-                    colcons.append(explcondict[thiscon.ConstrName])
-                    colcoeffs.append(col.getCoeff(k))
-                else:       # Constraint not eligible for explanation    
-                    continue
+                colcons.append(explcondict[thiscon.ConstrName])
+                colcoeffs.append(col.getCoeff(k))
             explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
                              column=gp.Column(colcoeffs, colcons))
         if CSinginfo != None:
@@ -810,6 +810,29 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 # singleton.
                 #
                 CSinginfo.append((con, None, coeff))
+        #
+        # The previous two loops iterated over modvars from the original
+        # model.  If modcons is a subset of the original model constraints,
+        # the previous loop may have included constraints in the explainer
+        # model corresponding to constraint in the original model not in
+        # the modcons array.   Therefore, remove any constraints in the
+        # explainer model that are not in the modcons list.  The explainer
+        # model has variable and constraint names based on the original
+        # model variable and constraint names, respectively.
+        #
+        explmodel.update()
+        if len(modcons) < model.NumConstrs:
+            modconlist = []
+            for con in modcons:
+                modconlist.append(con.ConstrName)
+            delcons = []
+            for explcon in explcondict.values():
+                if explcon.ConstrName in modconlist:
+                    continue
+                delcons.append(explcon)
+            explmodel.remove(delcons)
+            explmodel.update()
+            
     if _debug != OFF:
         endtime = time.time()
         print("Time build_explmodel = ", endtime - starttime)
@@ -944,7 +967,8 @@ def split_quadexpr(quadexpr, newvardict):
 #
 def angle_explain(model, howmany=1, partol=1e-6):
     if _debug != OFF:
-        import pdb; pdb.set_trace()
+        if _debugger != OFF:
+            import pdb; pdb.set_trace()
     modcons = model.getConstrs()
     modvars = model.getVars()
     explmodel, splitvardict, junk1, junk2 = extract_basis(model, modvars, \
@@ -1011,10 +1035,20 @@ def angle_explain(model, howmany=1, partol=1e-6):
     starttime        = time.time()    
     for bucket in bucketlists:
         for k in range(len(bucket)):
-            lhs1  = explmodel.getRow(bucket[k])
+            lhs1      = explmodel.getRow(bucket[k])
+            size1     = lhs1.size()     
+            norm1     = 0.0
+            row1array = explmodel.numVars*[0.0]
+            #
+            # Treat first row as a dense vector, second row as a sparse one.
+            #
+            for i in range(size1):
+                ind1            = lhs1.getVar(i).index
+                coef1           = lhs1.getCoeff(i) 
+                row1array[ind1] = coef1
+                norm1          += coef1**2
             for j in range((k+1),len(bucket)):
                 lhs2  = explmodel.getRow(bucket[j])   
-                size1 = lhs1.size()     
                 size2 = lhs2.size()
                 if size1 != size2:
                     continue               
@@ -1023,16 +1057,6 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 # and norms.  Need to handle the case where two rows intersect
                 # the same variables, but in a different order.
                 #
-                row1array = explmodel.numVars*[0.0]
-                norm1     = 0.0
-                #
-                # Treat first row as a dense vector, second row as a sparse one.
-                #
-                for i in range(size1):
-                    ind1            = lhs1.getVar(i).index
-                    coef1           = lhs1.getCoeff(i) 
-                    row1array[ind1] = coef1
-                    norm1          += coef1**2
                 #
                 # Compute the angle.  TODO: Make this calculation more
                 # precise.  Consider Kahan summation, and avoid adding
@@ -1078,6 +1102,7 @@ def angle_explain(model, howmany=1, partol=1e-6):
     if _debug != OFF:    
         endtime = time.time()
         print("Time for main row based loop = ", endtime - starttime)
+    del row1array
     #
     # Now look for almost parallel columns.   Hash the rows in a smaller
     # manner, except this time the bit values are based on row indices
@@ -1107,9 +1132,16 @@ def angle_explain(model, howmany=1, partol=1e-6):
     for bucket in bucketlists:
         for k in range(len(bucket)):
             col1  = explmodel.getCol(bucket[k])
+            col1array = explmodel.numVars*[0.0]
+            norm1     = 0.0
+            size1 = col1.size()     
+            for i in range(size1):    # Treat first column as dense vector.
+                ind1            = col1.getConstr(i).index
+                coef1           = col1.getCoeff(i)
+                col1array[ind1] = coef1
+                norm1          += coef1**2
             for j in range((k+1),len(bucket)):
                 col2  = explmodel.getCol(bucket[j])   
-                size1 = col1.size()     
                 size2 = col2.size()
                 if size1 != size2:
                     continue               
@@ -1117,15 +1149,6 @@ def angle_explain(model, howmany=1, partol=1e-6):
                 # Simple length based filtering failed.  Compute inner products
                 # and norms.  Need to handle the case where two columns
                 # intersect the same rows, but in a different order.
-                #
-                col1array = row1array
-                col1array = explmodel.numVars*[0.0]
-                norm1     = 0.0
-                for i in range(size1):    # Treat first column as dense vector.
-                    ind1            = col1.getConstr(i).index
-                    coef1           = col1.getCoeff(i)
-                    col1array[ind1] = coef1
-                    norm1          += coef1**2
                 #
                 # Compute the angle.  TODO: Make this calculation more
                 # precise.  Consider Kahan summation, and avoid adding
