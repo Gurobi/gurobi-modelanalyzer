@@ -18,7 +18,7 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = MODERATE       # Change to MODERATE or VERBOSE as needed
+_debug      = OFF            # Change to MODERATE or VERBOSE as needed
 _debugger   = OFF
 
 SOLVELP     = 0              # relobjtype choices
@@ -655,7 +655,10 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
 #
 def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     modeltype):
-    starttime        = time.time()    
+    starttime        = time.time()
+    t1               = 0.0
+    t2               = 0.0
+    sumtime          = 0.0
     if modeltype == BYROWS:
         #
         #   B'y = 0         
@@ -669,17 +672,26 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         # original model.   Will remove any variables associated with
         # constraints not in modcons after the next loop.
         #
+        
+        if _debug:
+            sumtime  = 0.0
+            t1 = time.time()
+            
         for con in model.getConstrs():
             explvname = con.ConstrName
             explvardict[explvname] = explmodel.addVar(lb = -float('inf'), \
                                                       name = explvname)
+        if _debug:
+            t2 = time.time()
+            sumtime += (t2 - t1)
+            print("inner for loop time = ", sumtime)
         
+        varlist  = []
+        coeflist = []
         for var in modvars:          # structural basic variables
             if var.VBasis != GRB.BASIC:
                 continue
             col = model.getCol(var)
-            varlist  = []
-            coeflist = []
             collen   = col.size()
             if collen == 1:          # record column singleton
                 if CSinginfo != None:
@@ -695,9 +707,13 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 coeflist.append(coeff)
             
             lhs = gp.LinExpr(coeflist, varlist)
-            explcondict[var.VarName] = explmodel.addConstr(lhs == 0, \
-                                                           name=var.VarName)
+#            explcondict[var.VarName] = explmodel.addConstr(lhs == 0, \
+#                                                           name=var.VarName)
+            explmodel.addConstr(lhs == 0, name=var.VarName)
+            coeflist.clear()
+            varlist.clear()
 
+            
         if CSinginfo != None:
             #
             # slack basic variables.  Ignore if processing row or column
@@ -766,13 +782,13 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         # needs to reference the constraint in the explainer model, not
         # the original model.
         #
+        colcons   = []
+        colcoeffs = []
         for var in modvars:          
             if var.VBasis != GRB.BASIC:
                 continue
             col     = model.getCol(var)
             collen  = col.size()
-            colcons   = []
-            colcoeffs = []
             if collen == 1:          # record column singleton
                 if CSinginfo != None:
                     CSinginfo.append((col.getConstr(0), var, col.getCoeff(0)))
@@ -788,6 +804,8 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 colcoeffs.append(col.getCoeff(k))
             explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
                              column=gp.Column(colcoeffs, colcons))
+            colcons.clear()
+            colcoeffs.clear()
         if CSinginfo != None:
             #
             # slack basic variables.  Ignore if processing row or column
@@ -882,6 +900,8 @@ def split_mirroredvars(model, varstosplit=None):
     for v in varstosplit:
         if v.UB != -v.LB:
             continue
+        if v.UB == 0.0 and v.LB == 0.0:       # No need to split vars
+            continue                          # fixed at zero
         #
         #  We have a candidate variable to split.
         #
@@ -897,7 +917,8 @@ def split_mirroredvars(model, varstosplit=None):
         for k in range(col.size()):
             coeflist.append(-col.getCoeff(k))
             conlist.append(col.getConstr(k))
-        splitcol.addTerms(coeflist, conlist)
+        if col.size() > 0:
+            splitcol.addTerms(coeflist, conlist)
         newvar = model.addVar(lb=0.0, ub=bnd, obj=-v.obj, vtype=v.Vtype, \
                               name=varname + "_GRBMinus", column=splitcol)
         newvarlist.append(newvar)
