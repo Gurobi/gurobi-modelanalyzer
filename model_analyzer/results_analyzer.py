@@ -18,7 +18,7 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = OFF            # Change to MODERATE or VERBOSE as needed
+_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
 _debugger   = OFF
 
 SOLVELP     = 0              # relobjtype choices
@@ -676,18 +676,21 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         if _debug:
             sumtime  = 0.0
             t1 = time.time()
-            
+
+        conindexdict = {}
         for con in model.getConstrs():
-            explvname = con.ConstrName
-            explvardict[explvname] = explmodel.addVar(lb = -float('inf'), \
-                                                      name = explvname)
+            conindexdict[con.index] = con
+            explvname               = con.ConstrName
+            explvardict[explvname]  = explmodel.addVar(lb = -float('inf'), \
+                                                       name = explvname)
         if _debug:
             t2 = time.time()
             sumtime += (t2 - t1)
             print("inner for loop time = ", sumtime)
         
-        varlist  = []
-        coeflist = []
+        varlist   = []
+        coeflist  = []
+        rowcounts = model.NumConstrs * [0]
         for var in modvars:          # structural basic variables
             if var.VBasis != GRB.BASIC:
                 continue
@@ -699,10 +702,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             for i in range(collen):
                 coeff = col.getCoeff(i)
                 con   = col.getConstr(i)
-                lhs   = model.getRow(con)
-                if lhs.size() == 1:  # record row singleton
-                    if RSinginfo != None:
-                        RSinginfo.append((con, var, lhs.getCoeff(0)))
+                rowcounts[con.index] += 1
                 varlist.append(explvardict[con.Constrname])
                 coeflist.append(coeff)
             
@@ -713,6 +713,13 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             coeflist.clear()
             varlist.clear()
 
+        if RSinginfo != None:
+            for ind in range(model.NumConstrs):
+                if rowcounts[ind] == 1:
+                    con = conindexdict[ind]
+                    lhs = model.getRow(con)
+                    RSinginfo.append((con, lhs.getVar(0), lhs.getCoeff(0)))
+            
             
         if CSinginfo != None:
             #
@@ -765,8 +772,9 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         #   e'y = 1         // normalization of y != 0 constraint
         #   y free
         #
-        explcondict = {}
-        modvarlist  = []
+        explcondict  = {}
+        modvarlist   = []
+        conindexdict = {}
         for con in model.getConstrs():
             #
             # Constraint initialization for column based explainer model.
@@ -774,6 +782,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             # in the original mode. Will remove any constraints associated
             # with constraints not in modcons after the next loop.
             #
+            conindexdict[con.index] = con
             explcondict[con.ConstrName] = \
                 explmodel.addConstr(0, GRB.EQUAL, 0, name=con.ConstrName)
 
@@ -784,6 +793,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         #
         colcons   = []
         colcoeffs = []
+        rowcounts = model.NumConstrs * [0]
         for var in modvars:          
             if var.VBasis != GRB.BASIC:
                 continue
@@ -795,17 +805,21 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
 
             for k in range(collen):
                 thiscon = col.getConstr(k)
-                lhs = model.getRow(thiscon)
-                if lhs.size() == 1:    # record row singleton
-                    if RSinginfo != None:
-                        RSinginfo.append((thiscon, var, lhs.getCoeff(0)))
-
+                rowcounts[thiscon.index] += 1
                 colcons.append(explcondict[thiscon.ConstrName])
                 colcoeffs.append(col.getCoeff(k))
             explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
                              column=gp.Column(colcoeffs, colcons))
             colcons.clear()
             colcoeffs.clear()
+
+        if RSinginfo != None:
+            for ind in range(model.NumConstrs):
+                if rowcounts[ind] == 1:
+                    con = conindexdict[ind]
+                    lhs = model.getRow(con)
+                    RSinginfo.append((con, lhs.getVar(0), lhs.getCoeff(0)))
+            
         if CSinginfo != None:
             #
             # slack basic variables.  Ignore if processing row or column
