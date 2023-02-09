@@ -80,10 +80,11 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                              a smaller submatrix.  Default is False.
        Returns:              For all method settings except ANGLES, returns
                              the model that consists of the explanation.  
-                             If the method is ANGLES returns a tuple of the 
-                             list of parallel rows, the list of parallel 
-                             columns, and the model that explains the ill
-                             conditioning.
+                             If the method is ANGLES, returns a list of tuples 
+                             of the almost parallel rows and almost parallel 
+                             columns, and the model associated with the basis 
+                             matrix containing those almost parallel rows or 
+                             columns.
 '''
     
     if (model.IsMIP or model.IsQP or model.IsQCP):
@@ -1001,6 +1002,36 @@ def split_quadexpr(quadexpr, newvardict):
 #   by the user, so it needs help info.
 #
 def angle_explain(model, howmany=1, partol=1e-6):
+#
+#   Help function info  
+#    
+    '''Specialized ill conditioning explainer for finding pairs of near 
+       parallel rows and near parallel columns of the basis matrix.   
+       Any basis statuses, in the model will be used, computing the 
+       factorization if needed.  If no statuses are available, solve the LP 
+       to optimality (or whatever the final solve status is), and use 
+       that basis.
+
+       Arguments:
+       model      (required) The LP model whose basis will be examined.
+                             Basis can be from completed solve or statuses.
+                             LP will be optimized if no basis is present.
+       howmany    (optional) Number of pairs of near parallel rows and columns
+                             to search for.  Default is 1.  Specify a positive
+                             integer for a particular number of pairs.   
+                             Specify an integer <= 0 to request all pairs.
+                             Routine searches rows first, then columns.   
+       partol     (optional) Tolerance below which two row or column vectors
+                             are considered almost parallel.  Used as a 
+                             relative tolerance when comparing the inner
+                             product of two vectors with the product of their
+                             L1 norms.
+       Returns:              returns a list of tuples of the almost parallel 
+                             rows and almost parallel columns, and the model 
+                             associated with the basis matrix containing those
+                             almost parallel rows or columns.
+'''
+
     if _debug != OFF:
         if _debugger != OFF:
             import pdb; pdb.set_trace()
