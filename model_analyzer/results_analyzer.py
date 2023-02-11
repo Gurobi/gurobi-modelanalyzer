@@ -34,7 +34,7 @@ CON         = 0
 VAR         = 1
 COEFF       = 2
 DEFSMALLTOL = 1e-13      
-COMBINEDROW = "\GRB_Combined_Row"
+COMBINEDROW = "GRB_Combined_Row"
 COMBINEDCOL = "GRB_Combined_Column"
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
@@ -121,7 +121,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         explmodel.write("explmodel.lp")          
 #
 #   Minimize the violations of B'y = 0 constraints.  Do not relax
-#   the e'y == 1 constraints, and the y variables are free, so they
+#   the e'y == 1 constraint, and the y variables are free, so they
 #   have no bounds to relax.
 #
     exvars  = explmodel.getVars()
@@ -216,9 +216,17 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     if expltype == BYROWS:
         yvars     = explmodel.getVars()[0:nbas]
         resmodel  = model.copy()
+        #
+        # Need original model basis statuses as well in order to compute
+        # rhs values b - A_Nx_N for the constraints in the explanation
+        # model.
+        #
+        resvars        = resmodel.getVars()
+        varsolinfodict = {}
+        for ov in model.getVars():
+            varsolinfodict[ov.VarName] = (ov.VBasis, ov.X)
         rcons     = resmodel.getConstrs()
         rconsdict = {}
-        count     = 0
         delcons   = []
         #
         # The order in which we created variables when extracting 
@@ -227,7 +235,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         # to map the support of the y vector to the correct constraints
         # in the computed explanation.
         #
-
+        combinedcnt = 0
+        combinedrhs = 0.0
         combinedlhs = gp.LinExpr()            # y'A; y is inf. certificate
         for c in rcons:
             rconsdict[c.ConstrName] = c
@@ -272,11 +281,38 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                                      thiscon.ConstrName
                 yvaldict[explname] = abs(yval)
                 thiscon.ConstrName = explname
-                # Inf. Certificate contribution to this constraint.
-                combinedlhs.add(resmodel.getRow(thiscon), yval)
-            count += 1           # do we actually need this?
-                  
-        resmodel.addLConstr(combinedlhs, GRB.LESS_EQUAL, GRB.INFINITY, \
+                thislhs            = resmodel.getRow(thiscon)
+                thisrhs            = thiscon.rhs
+                for j in range(thislhs.size()):
+                    var     = thislhs.getVar(j)
+                    coeff   = thislhs.getCoeff(j)
+                    varstat = varsolinfodict[var.VarName][0]
+                    if varstat == GRB.BASIC:
+                        continue
+                    if varstat == GRB.NONBASIC_LOWER:
+                        thisrhs  -= (var.LB*coeff)
+                    elif varstat == GRB.NONBASIC_UPPER:
+                        thisrhs -= (var.UB*coeff)
+                    elif varstat == GRB.SUPERBASIC:
+                        thisrhs -= (varsolinfodict[var.VarName][1]*coeff)
+                    
+                thiscon.rhs = thisrhs    
+                if thiscon.sense == GRB.GREATER_EQUAL:
+                    mult         = -yval
+                    combinedcnt += 1
+                else:
+                    mult = yval
+                    if thiscon.sense == GRB.LESS_EQUAL:
+                        combinedcnt += 1
+                # Inf. Certificate contribution to this constraint and rhs
+                combinedlhs.add(thislhs, mult)
+                combinedrhs += (thisrhs*mult)
+
+        if combinedcnt > 0:
+            combinedsense = GRB.LESS_EQUAL
+        else:
+            combinedsense = GRB.EQUAL
+        resmodel.addLConstr(combinedlhs, combinedsense, combinedrhs, \
                             COMBINEDROW)  
         resmodel.remove(delcons)
         resmodel.update()
@@ -730,7 +766,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             for con in modcons:          # slack basic variables
                 if con.CBasis != GRB.BASIC: # TODO:replace next 6 lines with fn.
                     continue
-                if con.Sense == '>':
+                if con.Sense == GRB.GREATER_EQUAL:
                     coeff = -1.0
                 else:
                     coeff = 1.0
@@ -829,7 +865,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             for con in modcons:          # slack basic variables
                 if con.CBasis != GRB.BASIC: # TODO: replace next 6 lines with fn.
                     continue
-                if con.Sense == '>':
+                if con.Sense == GRB.GREATER_EQUAL:
                     coeff = -1.0
                 else:
                     coeff = 1.0
