@@ -26,10 +26,5 @@ dependencies = [
 ]
 dynamic = ["version"]
 
-[project.urls]
-Documentation = "https://github.com/unknown/model-analyzer#readme"
-Issues = "https://github.com/unknown/model-analyzer/issues"
-Source = "https://github.com/unknown/model-analyzer"
-
 [tool.hatch.version]
-path = "model_analyzer/__about__.py"
+path = "model_analyzer/__init__.py"
