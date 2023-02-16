@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
   "gurobipy",
+  "numpy",
 ]
 dynamic = ["version"]
 

@@ -2,8 +2,8 @@ from collections import defaultdict
 import gurobipy as gp
 import math
 
-#import model_analyzer.common as common
-import common as common
+from model_analyzer import common
+
 
 def get_rhs_frequencies(model, base=10):
     rhs_count = defaultdict(int)

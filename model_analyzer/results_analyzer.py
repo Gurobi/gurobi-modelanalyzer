@@ -1,11 +1,13 @@
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
-import common as common
 import sys
 import os
 import math
 import time
+
+from model_analyzer import common
+
 #
 #   Ill conditioning explainer.   If the model has basis statuses, it will
 #   use them, computing the factorization if needed.   If no basis statuses
