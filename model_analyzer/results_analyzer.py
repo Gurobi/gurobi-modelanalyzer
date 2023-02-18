@@ -18,7 +18,7 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = OFF            # Change to MODERATE or VERBOSE as needed
+_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
 _debugger   = OFF
 
 SOLVELP     = 0              # relobjtype choices
@@ -239,9 +239,8 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         combinedrhs = 0.0
         combinedlhs = gp.LinExpr()            # y'A; y is inf. certificate
         for c in rcons:
-            rconsdict[c.ConstrName] = c
+            rconsdict[c.index] = c
 
-        suffix_len = len("_GRBPlus")
         for yv in yvars:
             if splitfreevars:
                 #
@@ -254,14 +253,15 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # the original model constraint name from the split
                 # variable names that have the plus/minus GRB suffixes.
                 #
-                yval     = yv.X - splitvardict[yv.VarName].X
-                yname    = yv.VarName[0:-suffix_len]   # original constr name.
+                suffix_len = len("_GRBPlus")
+                yval       = yv.X - splitvardict[yv.index].X
+                yname      = yv.VarName[0:-suffix_len]   # original constr name.
             else:
                 yval     = yv.X
                 yname    = yv.VarName
 
             zerotol = smalltol
-            thiscon  = rconsdict[yname]
+            thiscon  = rconsdict[yv.index]
             rownorm  = L1_rownorm(resmodel, thiscon)
             if rownorm > 0.0:      # Empty lhs is possible
                 if smalltol == DEFSMALLTOL:
@@ -271,12 +271,12 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 
                 
             if abs(yval) <= zerotol:
-                delcons.append(rconsdict[yname])  # To be filtered out.
+                delcons.append(rconsdict[yv.index])  # To be filtered out.
             else:
                 if _debug == VERBOSE:
                     print("Include constraint ", yname)
                     
-                thiscon            = rconsdict[yname]
+                thiscon            = rconsdict[yv.index]
                 explname           = "(mult=" + str(yval) + ")" + \
                                      thiscon.ConstrName
                 yvaldict[explname] = abs(yval)
@@ -347,7 +347,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
         delvars     = []
         combinedcol = gp.Column()
         for v in resvars:
-            resvardict[v.VarName] = v
+            resvardict[v.index] = v
         for yv in yvars:
             if splitfreevars:
                 #
@@ -361,16 +361,16 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                 # the original model variable name from the split
                 # variable names that have the plus/minus GRB suffixes.
                 #
-                minusvar   = splitvardict[yv.VarName]
+                minusvar   = splitvardict[yv.index]
                 yval       = yv.X - minusvar.X
                 ynamelen   = len(yv.VarName) - len("_GRBPlus") 
                 yname      = yv.VarName[0:ynamelen]   # original variable name
-                delvars.append(resvardict[minusvar.VarName])
+                delvars.append(resvardict[minusvar.index])
             else:
                 yval     = yv.X
                 yname    = yv.VarName
 
-            thisvar = resvardict[yv.VarName]
+            thisvar = resvardict[yv.index]
             colnorm = L1_colnorm(resmodel, thisvar)
 #
 #           By default, with really large row values, we try to capture
@@ -387,7 +387,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
             else:
                 zerotol = smalltol
             if abs(yval) < zerotol:
-                delvars.append(resvardict[yv.VarName])  # To be filtered out.
+                delvars.append(resvardict[yv.index])  # To be filtered out.
             else:
                 #
                 # Don't include relaxation variables.
@@ -663,7 +663,7 @@ def extract_basis(model, modvars, modcons, modeltype=BYROWS, \
         splitvardict = split_mirroredvars(explmodel)
         minusvars    = []
         for v in plusvars:
-            minusvar = splitvardict[v.VarName]
+            minusvar = splitvardict[v.index]
             minusvars.append(minusvar)
 #            explmodel.addSOS(GRB.SOS_TYPE1, [v, minusvar]) 
                              
@@ -717,9 +717,8 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         conindexdict = {}
         for con in model.getConstrs():
             conindexdict[con.index] = con
-            explvname               = con.ConstrName
-            explvardict[explvname]  = explmodel.addVar(lb = -float('inf'), \
-                                                       name = explvname)
+            explvardict[con.index]  = explmodel.addVar(lb = -float('inf'), \
+                                                       name = con.ConstrName)
         if _debug:
             t2 = time.time()
             sumtime += (t2 - t1)
@@ -740,7 +739,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 coeff = col.getCoeff(i)
                 con   = col.getConstr(i)
                 rowcounts[con.index] += 1
-                varlist.append(explvardict[con.Constrname])
+                varlist.append(explvardict[con.index])
                 coeflist.append(coeff)
             
             lhs = gp.LinExpr(coeflist, varlist)
@@ -770,8 +769,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                     coeff = -1.0
                 else:
                     coeff = 1.0
-                explvname = con.ConstrName
-                explmodel.addConstr(coeff*explvardict[explvname] == 0, \
+                explmodel.addConstr(coeff*explvardict[con.index] == 0, \
                                     name="GRB_slack_" + con.ConstrName)
                 #
                 # Slacks are column singletons by definition; treat them as
@@ -795,10 +793,10 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         if len(modcons) < model.NumConstrs:
             modconlist = []
             for con in modcons:
-                modconlist.append(con.ConstrName)
+                modconlist.append(con.index)
             delvars = []
             for explvar in explvardict.values():
-                if explvar.VarName in modconlist:
+                if explvar.index in modconlist:
                     continue
                 delvars.append(explvar)
             explmodel.remove(delvars)
@@ -820,7 +818,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             # with constraints not in modcons after the next loop.
             #
             conindexdict[con.index] = con
-            explcondict[con.ConstrName] = \
+            explcondict[con.index] = \
                 explmodel.addConstr(0, GRB.EQUAL, 0, name=con.ConstrName)
 
         #
@@ -843,7 +841,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
             for k in range(collen):
                 thiscon = col.getConstr(k)
                 rowcounts[thiscon.index] += 1
-                colcons.append(explcondict[thiscon.ConstrName])
+                colcons.append(explcondict[thiscon.index])
                 colcoeffs.append(col.getCoeff(k))
             explmodel.addVar(obj=0.0, lb = -float('inf'), name=var.VarName, \
                              column=gp.Column(colcoeffs, colcons))
@@ -870,7 +868,7 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 else:
                     coeff = 1.0
                 vname = "GRBslack_" + con.ConstrName
-                col = gp.Column([coeff], [explcondict[con.ConstrName]])
+                col = gp.Column([coeff], [explcondict[con.index]])
                 explmodel.addVar(obj=0.0, lb = -float('inf'), name=vname, \
                                  column=col)
                 #
@@ -893,10 +891,10 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
         if len(modcons) < model.NumConstrs:
             modconlist = []
             for con in modcons:
-                modconlist.append(con.ConstrName)
+                modconlist.append(con.index)
             delcons = []
             for explcon in explcondict.values():
-                if explcon.ConstrName in modconlist:
+                if explcon.index in modconlist:
                     continue
                 delcons.append(explcon)
             explmodel.remove(delcons)
@@ -973,7 +971,7 @@ def split_mirroredvars(model, varstosplit=None):
         newvar = model.addVar(lb=0.0, ub=bnd, obj=-v.obj, vtype=v.Vtype, \
                               name=varname + "_GRBMinus", column=splitcol)
         newvarlist.append(newvar)
-        newvardict[chgvarname] = newvar
+        newvardict[v.index] = newvar
 
     #
     # Linear constraints completed; now update any QCs that contain
@@ -1010,18 +1008,18 @@ def split_quadexpr(quadexpr, newvardict):
         xi = quadexpr.getVar1(k)
         xj = quadexpr.getVar2(k)
         qcoef = quadexpr.getCoeff(k)
-        if xi.varName in newvardict:      # xi is split into xi(+) - xi(-)
+        if xi.index in newvardict:      # xi is split into xi(+) - xi(-)
             # xi(-) * xj term
-            quadexpr.addTerms(-qcoef, xj, newvardict[xi.VarName])
-            if xj.varName in newvardict: # both xi and xj split
+            quadexpr.addTerms(-qcoef, xj, newvardict[xi.index])
+            if xj.index in newvardict: # both xi and xj split
                 # xi * xj(-) term
-                quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+                quadexpr.addTerms(-qcoef, xi, newvardict[xj.index])
                 # xi(-) * xj(-) term
-                quadexpr.addTerms(qcoef, newvardict[xi.VarName], \
-                                      newvardict[xj.VarName])
-        elif xj.varName in newvardict: # xj is split, but xi is not.
+                quadexpr.addTerms(qcoef, newvardict[xi.index], \
+                                      newvardict[xj.index])
+        elif xj.index in newvardict: # xj is split, but xi is not.
             # xi * xj(-) term
-            quadexpr.addTerms(-qcoef, xi, newvardict[xj.VarName])
+            quadexpr.addTerms(-qcoef, xi, newvardict[xj.index])
 
 
 #
