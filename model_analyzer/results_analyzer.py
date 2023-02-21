@@ -18,7 +18,7 @@ import time
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
+_debug      = OFF            # Change to MODERATE or VERBOSE as needed
 _debugger   = OFF
 
 SOLVELP     = 0              # relobjtype choices
