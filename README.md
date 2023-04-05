@@ -1,6 +1,22 @@
 # Model analyzer
-This tool allows you to retrieve static information about a given model. You can either supply a file location or a Gurobi model object, and then get in return a dictionary or JSON with the corresponding model information.
 
-This is the code that Kostja wrote 4 years ago, however reformatted by me and with the hope of creating a modular model analysis and productivity tool from it.
+The ill-conditioning explainer, packaged! Install using:
 
-You can get it either by cloning this repo or by conda installing it (coming soon); conda is needed since `gurobipy` currently needs conda.
+```
+pip install git+ssh://git@github.compute.gurobi.com/bowly/model_analyzer.git
+```
+
+Then use the explainer functions:
+
+```
+from model_analyzer import kappa_explain, BYROWS, BYCOLS
+
+# row-based explanation
+kappa_explain(model, expltype=BYROWS)
+
+# column-based explanation
+kappa_explain(model, expltype=BYCOLS)
+```
+
+I have only exposed the `kappa_explain` function for now (ill-conditioning checker)
+as it's not yet clear what else will be in the public API.

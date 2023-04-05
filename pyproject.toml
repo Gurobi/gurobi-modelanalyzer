@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "model-analyzer"
+description = 'Analyzer of models'
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = []
+authors = [
+  { name = "Ed Klotz", email = "klotz@gurobi.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+  "gurobipy",
+  "numpy",
+]
+dynamic = ["version"]
+
+[tool.hatch.version]
+path = "model_analyzer/__init__.py"

@@ -1,14 +1,14 @@
 from unittest import TestCase
-import os
+import pathlib
 
 import model_analyzer.analyzer as analyzer
 
 
 class TestAnalyzer(TestCase):
     def setUp(self) -> None:
-        cwd = os.getcwd()
 
-        self.file_path = os.path.join(cwd, 'dataset', 'glass4.mps')
+        here = pathlib.Path(__file__).parent
+        self.file_path = str(here / 'dataset' / 'glass4.mps')
 
     def test_run(self):
         data = analyzer.run(self.file_path)
