@@ -8,6 +8,7 @@ import time
 
 from model_analyzer import common
 
+
 #
 #   Ill conditioning explainer.   If the model has basis statuses, it will
 #   use them, computing the factorization if needed.   If no basis statuses
@@ -20,8 +21,8 @@ from model_analyzer import common
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = OFF            # Change to MODERATE or VERBOSE as needed
-_debugger   = OFF
+_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
+_debugger   = MODERATE
 
 SOLVELP     = 0              # relobjtype choices
 SOLVEQP     = 1
@@ -756,7 +757,9 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 if rowcounts[ind] == 1:
                     con = conindexdict[ind]
                     lhs = model.getRow(con)
-                    RSinginfo.append((con, lhs.getVar(0), lhs.getCoeff(0)))
+                    var = lhs.getVar(0)
+                    if var.VBasis == GRB.BASIC:
+                        RSinginfo.append((con, var, lhs.getCoeff(0)))
             
             
         if CSinginfo != None:
@@ -855,7 +858,9 @@ def build_explmodel(model, explmodel, modvars, modcons, RSinginfo, CSinginfo,\
                 if rowcounts[ind] == 1:
                     con = conindexdict[ind]
                     lhs = model.getRow(con)
-                    RSinginfo.append((con, lhs.getVar(0), lhs.getCoeff(0)))
+                    var = lhs.getVar(0)
+                    if var.VBasis == GRB.BASIC:
+                        RSinginfo.append((con, var, lhs.getCoeff(0)))
             
         if CSinginfo != None:
             #
