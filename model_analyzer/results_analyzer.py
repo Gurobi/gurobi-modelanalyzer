@@ -41,7 +41,7 @@ COMBINEDROW = "GRB_Combined_Row"
 COMBINEDCOL = "GRB_Combined_Column"
 
 def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
-                  relobjtype=SOLVELP, expltype=BYROWS, method=DEFAULT, \
+                  relobjtype="LP", expltype="ROWS", method="DEFAULT", \
                   smalltol=DEFSMALLTOL, submatrix=False):
 #
 #   Help function info  
@@ -63,18 +63,20 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                              solved to derive the ill conditioning certificate.
        relobjtype (optional) Type of subproblem to create for calculation of
                              ill conditioning certificate.
-                             SOLVELP (default) 
-                             SOLVEQP
-                             SOLVEMIP 
-       expltype   (optional) Row (BYROWS) or column (BYCOLS) based computation 
-                             and explanation
-       method     (optional) Alternate subproblem types
-                             DEFAULT = Basic subproblem (no regularization. 
-                             ANGLES  = Simpler calculation based on inner 
-                                       products.  Potential faster but only 
-                                       finds explanations of 2 rows or columns.
-                             LASSO   = One norm regularization.
-                             RLS     = Two norm regularization.
+                             "LP" (default) 
+                             "QP"
+       expltype   (optional) Row ("ROWS") or column ("COLS") based computation 
+                             and explanation. Default is by row.  One type of
+                             explanation is often much smaller than the other.
+       method     (optional) Alternate subproblem types (may help generate
+                             smaller explanation).
+                             "DEFAULT" = Basic subproblem (no regularization). 
+                             "ANGLES"  = Simpler calculation based on inner 
+                                         products.  Potentially faster but only 
+                                         finds explanations of 2 rows or 
+                                         columns.
+                             "LASSO"   = One norm regularization.
+                             "RLS"     = Two norm regularization.
        smalltol   (optional) Tolerance below which certificate of ill 
                              conditioning values are treated as zero.   If
                              left at default of 1e-13, row or column norm and
@@ -96,6 +98,44 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
     if _debug != OFF:
         if _debugger != OFF:
             import pdb; pdb.set_trace()
+
+    if expltype == "COLS":
+        expltype = BYCOLS
+    elif expltype == "ROWS":
+        expltype = BYROWS
+    else:
+        print("Invalid specification for expltype:", str(expltype) + \
+              ": exiting.")
+        return None
+        
+    if relobjtype == "QP":
+        relobjtype = SOLVEQP
+    elif relobjtype == "LP":
+        relobjtype = SOLVELP
+    elif relobjtype == "MIP":
+        print("MIP subproblem currently unsupported; exiting. ")
+        print("Consider setting method to LASSO or submatrix parameter", \
+              "to False to obtain smaller explanation.")
+        return None
+    else:
+        print("Invalid specification for relobjtype:", str(relobjtype) + \
+              "; exiting.")
+        return None
+
+    if method == "DEFAULT":
+        method = DEFAULT
+    elif method =="ANGLES":
+        method = ANGLES
+    elif method == "LASSO":
+        method = LASSO
+    elif method == "RLS":
+        method = RLS
+    else:
+        print("Invalid specification for method:", str(method) + "; exiting.")
+        return None
+        
+        
+            
 
     modvars = model.getVars()      
     modcons = model.getConstrs()   
