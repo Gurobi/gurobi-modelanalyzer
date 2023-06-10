@@ -21,8 +21,8 @@ from model_analyzer import common
 OFF         = 0
 MODERATE    = 1
 VERBOSE     = 2
-_debug      = MODERATE            # Change to MODERATE or VERBOSE as needed
-_debugger   = MODERATE
+_debug      = OFF            # Change to MODERATE or VERBOSE as needed
+_debugger   = OFF
 
 SOLVELP     = 0              # relobjtype choices
 SOLVEQP     = 1
@@ -68,7 +68,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
        expltype   (optional) Row ("ROWS") or column ("COLS") based computation 
                              and explanation. Default is by row.  One type of
                              explanation is often much smaller than the other.
-       method     (optional) Alternate subproblem types (may help generate
+       method     (optional) Alternate computation methods (may help generate
                              smaller explanation).
                              "DEFAULT" = Basic subproblem (no regularization). 
                              "ANGLES"  = Simpler calculation based on inner 
