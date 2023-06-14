@@ -2,15 +2,21 @@
 
 1. Install the sphinx requirements:
 
-    python -m pip install -r requirements.txt
+```console
+python -m pip install -r requirements.txt
+```
 
 2. Build the documentation:
 
-    make html
+```console
+make html
+```
 
 3. Open the main docs page (`build/html/index.html`) in a browser
 
-    open build/html/index.html
+```
+open build/html/index.html
+```
 
 ## Editing the docs
 
