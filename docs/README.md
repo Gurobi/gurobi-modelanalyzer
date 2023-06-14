@@ -6,17 +6,20 @@
 python -m pip install -r requirements.txt
 ```
 
-2. Build the documentation:
+2. Build the documentation as an html site:
 
 ```console
 make html
 ```
 
-3. Open the main docs page (`build/html/index.html`) in a browser
+3. Open the built docs (`build/html/index.html`) in a browser
 
-```
+```console
 open build/html/index.html
 ```
+
+4. Run `make html` again and refresh the browser window to rebuild the docs
+after making edits.
 
 ## Editing the docs
 
