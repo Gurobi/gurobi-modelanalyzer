@@ -43,8 +43,7 @@ If you encounter issues with Gurobi or gurobipy please contact
 The easiest way to install gurobi-machinelearning is using pip in a
 virtual environment:
 
-<this needs to updated>
-(.venv) pip install git+ssh://git@github.compute.gurobi.com/bowly/model_analyzer.git
+(.venv) pip install gurobi-modelanalyzer
 
 
 

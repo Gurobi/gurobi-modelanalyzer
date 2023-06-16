@@ -339,22 +339,25 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
                     elif varstat == GRB.SUPERBASIC:
                         thisrhs -= (varsolinfodict[var.VarName][1]*coeff)
                     
-                thiscon.rhs = thisrhs    
-                if thiscon.sense == GRB.GREATER_EQUAL:
-                    mult         = -yval
-                    combinedcnt += 1
-                else:
-                    mult = yval
-                    if thiscon.sense == GRB.LESS_EQUAL:
-                        combinedcnt += 1
+                thiscon.rhs   = thisrhs
+                mult          = yval
+                combinedsense = GRB.EQUAL
+                # Can be deleted if no issues arise.
+                # if thiscon.sense == GRB.GREATER_EQUAL:
+                #    mult         = -yval
+                #    combinedcnt += 1
+                #else:
+                #    mult = yval
+                #    if thiscon.sense == GRB.LESS_EQUAL:
+                #        combinedcnt += 1
                 # Inf. Certificate contribution to this constraint and rhs
                 combinedlhs.add(thislhs, mult)
                 combinedrhs += (thisrhs*mult)
 
-        if combinedcnt > 0:
-            combinedsense = GRB.LESS_EQUAL
-        else:
-            combinedsense = GRB.EQUAL
+        # if combinedcnt > 0:         can be deleted if no issues arise.
+        #    combinedsense = GRB.LESS_EQUAL
+        #else:
+        #    combinedsense = GRB.EQUAL
         resmodel.addLConstr(combinedlhs, combinedsense, combinedrhs, \
                             COMBINEDROW)  
         resmodel.remove(delcons)
