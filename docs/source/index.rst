@@ -28,7 +28,8 @@ future versions.
    :maxdepth: 2
    :caption: Contents:
 
-
+   installation
+   illcond
 
 Indices and tables
 ==================
