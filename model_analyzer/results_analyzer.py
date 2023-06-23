@@ -53,7 +53,7 @@ def kappa_explain(model, data=None, KappaExact=-1, prmfile=None,  \
 
        Arguments:
        model      (required) The LP model whose basis will be examined.
-                             Basis can be from completed solve or statuses.
+                             Basis can be from a completed solve or statuses.
                              LP will be optimized if no basis present
        data                  Do not provide.  Used only for Gurobi routines.
        KappaExact (optional) 1 = display exact condition number in stats

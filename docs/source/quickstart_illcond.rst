@@ -1,3 +1,5 @@
+.. _QSGuideLabel:
+
 Quick Start Guide
 #################
 
@@ -16,8 +18,8 @@ the convex quadratic objective expression with a linear expression (including
 just removing the quadratic part).  The currently implemented approach
 uses the fact that an ill conditioned square matrix has linear combination
 of a subset of rows or columns that is close to 0.  Mathematically,
-for a square matrix B, calculates a nonzero linear combination vector y such
-that :math:` B^{T}y \\leq \\epsilon` and ..math: `||y|| >> \\epsilon`.
+for a square matrix B, itcalculates a nonzero linear combination vector y such
+that :math:`||B^{T}y||_{\infty} \leq \epsilon` and :math:`||y|| >> \epsilon`.
 The vector y can be viewed as a certificate of ill conditioning.  The elements
 of y that are zero correspond to rows of the matrix B that do not
 contribute to the ill conditioning.   The Ill Conditioning Explainer filters
@@ -103,7 +105,7 @@ such an LP file::
 The last 5 rows all consist of small multipliers and constraint
 coefficients on the order of 1 or less, so their contribution to the
 explanation is minimal.  The first two basis rows provide the
-explanation, and examination of these reveals that the intersect the
+explanation, and examination of these reveals that they intersect the
 same 3 variables, and that the rows are almost parallel.  This is thie
 cause of the ill conditioning.  Remedies depend on the model in
 general, but in this case the modeler should focus on whether the
@@ -187,7 +189,7 @@ large models.   A model detailed discussion will appear in the <LINK>
 Advanced Usage section regarding how to interpret large explanations.
 However, the recommended approach when getting started is to first request
 a row-based explanation, but if it is too large to interpret then request
-the column based explanation.   In many case, one of the two explanations
+the column based explanation.   In many cases, one of the two explanations
 may be much smaller and easier to interpret than the other.   If both are
 large, try the angle_explain routine.   If none of these approach yield
 anything, look at the <LINK> Advanced Usage section for additional information

@@ -30,7 +30,9 @@ future versions.
 
    installation
    illcond
-
+   contactus
+   license
+   
 Indices and tables
 ==================
 
