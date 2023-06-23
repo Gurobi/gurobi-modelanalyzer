@@ -1,3 +1,5 @@
+.. _AdvUsageLabel:
+
 Advanced Usage Guide
 ####################
 
@@ -184,16 +186,18 @@ Additional Function Arguments
 *****************************
 
 The :ref:`QSGuideLabel` describes the most common usage of the explainer
-functions <LINK> kappa_explain and <LINK>angle_explain.   This section
+functions :ref:`kappa_explain <APIkappa_explainLabel>` and
+:ref:`angle_explain <APIangle_explainLabel>`.   This section
 considers additional function arguments that can help reduce the size of
 the explanation, potentially making it easier to interpret.  A complete
-list of function arguments appears in the <LINK> API section.
+list of function arguments appears in the :doc:`apiref_illcond` section.
 
 
 The kappa_explain() method
 --------------------------
 
-The <LINK> kappa_explain method provides a row or column based explanation
+The :ref:`kappa_explain <APIkappa_explainLabel>` method provides a row or
+column based explanation
 of the cause of ill conditioning in a basis matrix.  It has several arguments
 designed to reduce the size of the explanation.
 
@@ -215,9 +219,9 @@ designed to reduce the size of the explanation.
   can be removed from the explanation.   However, in numerous explanations,
   rows or columns with small multipliers contribute little insight to the
   explanation and can be ignored.  The smalltol parameter is optional,
-  and by default the explainer will use a base value of :math:`10^{13}`,
+  and by default the explainer will use a base value of :math:`10^{-13}`,
   but also consider each row or column norm as well as the machine precision.
-  Specifying a non default value other than :math:`10^{13}` replaces the
+  Specifying a non default value other than :math:`10^{-13}` replaces the
   default setting with the alternate value to be used in the row or column
   filtering process.  Note that the explainer output file lists the rows or
   columns ordered in descending order starting with the absolute multiplier
@@ -232,8 +236,8 @@ designed to reduce the size of the explanation.
   that computes the certificate of ill conditioning.  These options currently
   involve regularization methods of the objective that try to reduce the size
   of the explanation.   The default setting performs no regularization.
-  The "ANGLES" option invokes the <section LINK> angle_explain() method,
-  which will be discussed subsequently.   When invoked from kappa_explain
+  The "ANGLES" option invokes the :ref:`angle_explain <APIangle_explainLabel>`
+  method, which will be discussed subsequently.  When invoked from kappa_explain
   with method="ANGLES", a single pair of almost parallel rows or columns
   will be returned, if it exists.  Setting method="LASSO" invokes the
   Lasso method, which involves adding a regularization term to the objective
@@ -245,7 +249,7 @@ designed to reduce the size of the explanation.
   explanation to try to reduce the size.   The default setting is False;
   set it to True to enable this feature.  Initial tests with this parameter
   show reductions in explanation size of 20-50 percent.   Unfortunately,
-  however, this level of reduction has been of limited value on large
+  however, this level of reduction may have limited value on large
   explanations of hundreds or thousands of rows or columns, as the explanation
   remains quite large after this postprocessing is performed.
 
@@ -253,7 +257,8 @@ designed to reduce the size of the explanation.
 The angle_explain() method
 ---------------------------
 
-The <LINK> angle_explain method looks for near parallel pairs of basis matrix
+The :ref:`angle_explain <APIangle_explainLabel>` method looks for near
+parallel pairs of basis matrix
 rows or columns.  It does not solve a subproblem.   The explanations it finds,
 if any exist, are always easy to interpret.   But for many ill conditioned
 basis matrices no near parallel pairs exist, and the routine provides no

@@ -35,11 +35,12 @@ Running the Explainer
 *********************
 
 This section describes the 3 most basic ways to run the explainer.
-Additional methods will be described later in the <LINK>Advanced Usage section.
-The <LINK> kappa_explain method looks for explanations of arbitrary size.
-By default it will provide a row-based explanation, but a column-based
-explanation can be obtained by setting the expltype function argument to
-"COLS".   Here is the simplest sequence of commands to do this.
+Additional methods will be described later in the :doc:`advanced_usage_illcond`
+section. The :ref:`kappa_explain <APIkappa_explainLabel>` method looks for
+explanations of
+arbitrary size. By default it will provide a row-based explanation, but a
+column-based explanation can be obtained by setting the expltype function
+argument to "COLS".   Here is the simplest sequence of commands to do this.
 
 
 .. code-block:: python
@@ -185,12 +186,13 @@ Suggested Usage Quick Start
 
 Explainer output may be small and straightforward to interpret, or it may
 consists of hundreds or thousands of constraints or variables when run on
-large models.   A model detailed discussion will appear in the <LINK>
-Advanced Usage section regarding how to interpret large explanations.
-However, the recommended approach when getting started is to first request
+large models.   A model detailed discussion will appear in the
+:doc:`advanced_usage_illcond` section regarding how to interpret large
+explanations. However, the recommended approach when getting started
+is to first request
 a row-based explanation, but if it is too large to interpret then request
 the column based explanation.   In many cases, one of the two explanations
 may be much smaller and easier to interpret than the other.   If both are
 large, try the angle_explain routine.   If none of these approach yield
-anything, look at the <LINK> Advanced Usage section for additional information
-on how to interpret the output.
+anything, look at the :doc:`advanced_usage_illcond` section for additional
+information on how to interpret the output.

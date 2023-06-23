@@ -1,6 +1,9 @@
 API Reference
 #############
 
+
+.. _APIkappa_explainLabel:
+
 .. py:function:: model_analyzer.kappa_explain(model, data=None, KappaExact=-1, prmfile=None, relobjtype="LP", expltype="ROWS", method="DEFAULT", smalltol=1e-13, submatrix=False)
 
    Computes an explanation of ill conditioning for the basis matrix associated
@@ -36,7 +39,8 @@ API Reference
    :param submatrix:  Optional flag to try to postprocess the explanation down to a smaller submatrix.   Default is False.
    :return:           A Gurobi model object containing the basis matrix rows or columns in the explanation that was written to an LP or MPS file.
 
-		      
+.. _APIangle_explainLabel:
+      
 .. py:function:: model_analyzer.angle_explain(model, howmany=1, partol=1e-6)
 
    Searches for ill conditioning explanations consisting of pairs of near
