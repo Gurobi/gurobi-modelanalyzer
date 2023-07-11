@@ -27,4 +27,4 @@ We encourage to install the package via pip (or add it to your
    If for some reason you prefer not to install the package, all of the
    functionality for the ill conditioning explainer is contained in the
    source files results_analyzer.py and common.py, available in the GitHub
-   repository.  
+   repository.

@@ -3,14 +3,14 @@ import pathlib
 import os
 
 import gurobipy as gp
-from model_analyzer import kappa_explain, angle_explain
+from model_analyzer import kappa_explain
 
 here = pathlib.Path(__file__).parent
 cwd = pathlib.Path(os.getcwd())
 
 
 class TestExplainer(unittest.TestCase):
-    """ Super simple tests: did we write output files? """
+    """Super simple tests: did we write output files?"""
 
     def setUp(self):
         self.clean()
@@ -81,6 +81,7 @@ class TestExplainer(unittest.TestCase):
         assert not lpfile.exists()
         kappa_explain(self.model, submatrix=True)
         assert lpfile.exists()
+
     #
     #   angle_explain is different, as it doesn't write a file
     #   There's a problem is any of the 3 items it returns

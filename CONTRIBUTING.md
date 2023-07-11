@@ -1,4 +1,4 @@
-# Contributing to Gurobi 
+# Contributing to Gurobi
 
 Welcome to Gurobi Model Analyzer
 

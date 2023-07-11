@@ -44,7 +44,7 @@ argument to "COLS".   Here is the simplest sequence of commands to do this.
 
 
 .. code-block:: python
-		
+
    import gurobipy as gp
    import model_analyzer as ma
 
@@ -175,7 +175,7 @@ previous LP and MPS files::
        ([(<gurobi.Constr R09>, <gurobi.Constr R09bad>)], [],
        <gurobi.Model Continuous instance basismodel: 28 constrs, 28 vars,
        No parameter changes>)
-   >>> 
+   >>>
 
 Thus, it detected the same two constraints as the row-based explanation,
 and found no almost parallel columns.

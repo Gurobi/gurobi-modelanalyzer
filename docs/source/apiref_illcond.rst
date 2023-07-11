@@ -27,20 +27,20 @@ API Reference
    :param relobjtype: Optional type of subproblem to create for the calculating the ill conditioning certificate.  "LP" is the default, but "QP" specifies a quadratic objective.
    :param expltype:   Optional parameter to request an explanation by rows or columns.  The explanation consists of either a collection of rows or columns that are close to linearly dependent.  Specify "ROWS" (the default) or "COLS".  One type of explanation is often much smaller than the other.
    :param method:     Optional method used for explainer computation.  Non default settings may help generate smaller explanation.
-		      
+
 		      "DEFAULT":   No regularization of subproblem objective
-		      
+
 		      "ANGLES":    Perform simpler calculation based on inner products.  This can be potentially faster, but it only finds explanations of two rows or columns.
-		      
+
 		      "LASSO":     One norm regularization of subproblem objective.
-		      
+
 		      "RLS":       Two norm regularization of subproblem objective.
    :param smalltol:   Optional tolerance below which ill conditioning certificate values are all treated as zero, i.e., the row or column associated with the value is filtered out of the explanation.  If left at the default of 1e-13, row or column norms and machine precision will be incorporated into the filtering decision.
    :param submatrix:  Optional flag to try to postprocess the explanation down to a smaller submatrix.   Default is False.
    :return:           A Gurobi model object containing the basis matrix rows or columns in the explanation that was written to an LP or MPS file.
 
 .. _APIangle_explainLabel:
-      
+
 .. py:function:: model_analyzer.angle_explain(model, howmany=1, partol=1e-6)
 
    Searches for ill conditioning explanations consisting of pairs of near

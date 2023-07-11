@@ -25,7 +25,7 @@ these files can be more challenging.   This section provides some guidance
 on how to do so.   Specifically, by making full use of the linear combination
 vector values and watching for common model structures that can cause
 ill conditioned basis matrices, even large explanations can often be
-used to effectively identify the source of the ill conditioning.  
+used to effectively identify the source of the ill conditioning.
 
 Regarding making full use of the linear combination vector values, recall
 from the :ref:`QSIntroductionLabel` section that the vector satisfies
@@ -53,14 +53,14 @@ having to look at most of its contents.
   using more suitable units of measurements (e.g., counting in thousands
   of dollars rather than dollars) or reducing unnecessarily large values
   in big M constraints used to model fixed charges can often improve the large
-  ratios without affecting the meaning of the model.  
+  ratios without affecting the meaning of the model.
 
 * **Imprecise rounding of matrix coefficient values.**
   Rounded repeating decimals associated with fractions can turn truly
   parallel rows, which do not create issues with ill conditioning, into
   nearly parallel rows, which do.  For models with fractional data
   with repeating decimal places, avoid imprecise rounding
-  of these values, e.g.,  don't calculate 1/3 or 5/7 to 10 decimal places 
+  of these values, e.g.,  don't calculate 1/3 or 5/7 to 10 decimal places
   instead of the full 16 decimal places that are available in the 64 bit
   doubles that Gurobi uses to input the problem data.  Better yet, if the
   numerator and denominator of the fractions in a constraint are known
@@ -77,14 +77,14 @@ having to look at most of its contents.
   finite precision.  For example, note the difference in the 16th
   decimal place of the following two mathematically equivalent values
   when calculated with Python::
-    
+
     >>> import math
     >>> math.sqrt(2)/2
     0.7071067811865476
     >>> math.sin(math.radians(45))
     0.7071067811865475
     >>>
-    
+
   Such slight differences can turn identical coefficients into slightly
   different ones, which in turn can transform truly parallel rows into
   almost parallel ones, thus creating ill conditioning.  If the values
@@ -122,7 +122,7 @@ having to look at most of its contents.
       :align: center
       :scale: 60 %
 
-  
+
   This submatrix has inverse of the form
 
   .. image:: _static/BasisInv.png
@@ -141,7 +141,7 @@ a publicly available model where the basis condition number was in
 the order of :math:`10^{31}`.  Note that each variable appears in
 consecutive constraints, and that the coefficients in each constraint
 are the same.  In this model the variables are free variables rather han
-being bounded below by 0. 
+being bounded below by 0.
 
 | (mult=1.267949192397407)e11923: 0.221528652 x33590 = 0
 | (mult=-0.3397459621039425)e11803: 0.221528652 x32870 + 0.8267561847 x33590 = 0
@@ -177,9 +177,9 @@ matrix rows or columns.   The model developer should assess the meaning of
 these constraints in the context of the whole model, and why the activities
 at the start of the sequence are implicitly being rescaled to much larger
 values at the end of the sequence.
-    
+
 For a more detailed discussion of common sources of ill conditioning
-in LPs and MILPs, see Section 4 of 
+in LPs and MILPs, see Section 4 of
 https://pubsonline.informs.org/doi/10.1287/educ.2014.0130.
 
 Additional Function Arguments

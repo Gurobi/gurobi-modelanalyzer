@@ -29,10 +29,3 @@ dynamic = ["version"]
 
 [tool.hatch.version]
 path = "model_analyzer/__init__.py"
-
-
-
-
-
-
-

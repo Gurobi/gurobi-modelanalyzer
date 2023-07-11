@@ -22,7 +22,8 @@ def process_objective(m, data):
         count_quad_terms = obj.size()
         for i in range(obj.size()):
             coeff = obj.getCoeff(i)
-            if coeff > 0: count_positive_coeffs += 1
+            if coeff > 0:
+                count_positive_coeffs += 1
             count_obj_coeffs_decimal_digits[common.count_decimal_digits(coeff)] += 1
             obj_variables.add(obj.getVar1(i))
             obj_variables.add(obj.getVar2(i))
@@ -48,7 +49,8 @@ def process_objective(m, data):
         else:
             count_linear_vars += 1
             obj_variables.add(var)
-            if var.Obj > 0: count_positive_coeffs += 1
+            if var.Obj > 0:
+                count_positive_coeffs += 1
 
             if obj_lb > -gp.GRB.INFINITY:
                 obj_lb = max(-gp.GRB.INFINITY, obj_lb + common.min_value(var, var.Obj))
@@ -58,9 +60,13 @@ def process_objective(m, data):
 
             count_obj_coeffs_decimal_digits[common.count_decimal_digits(var.Obj)] += 1
 
-    obj_coeffs_decimal_digits_result = [[length, count_obj_coeffs_decimal_digits[length]]
-                                        for length in range(min(count_obj_coeffs_decimal_digits.keys()),
-                                                            max(count_obj_coeffs_decimal_digits.keys()) + 1)]
+    obj_coeffs_decimal_digits_result = [
+        [length, count_obj_coeffs_decimal_digits[length]]
+        for length in range(
+            min(count_obj_coeffs_decimal_digits.keys()),
+            max(count_obj_coeffs_decimal_digits.keys()) + 1,
+        )
+    ]
 
     data["objLB"] = obj_lb
     data["objUB"] = obj_ub
@@ -74,7 +80,9 @@ def process_objective(m, data):
     data["numQObjTerms"] = count_quad_terms
     data["numQObjVars"] = count_quad_vars
 
-    data["numObjIntVars"] = len([var for var in obj_variables if common.get_vtype(var) != gp.GRB.CONTINUOUS])
+    data["numObjIntVars"] = len(
+        [var for var in obj_variables if common.get_vtype(var) != gp.GRB.CONTINUOUS]
+    )
     data["numObjCoeffs"] = sum(count_obj_coeffs_decimal_digits.values())
     data["numObjIntCoeffs"] = count_obj_coeffs_decimal_digits[0]
     data["numObjPosCoeffs"] = count_positive_coeffs
@@ -84,5 +92,5 @@ def process_objective(m, data):
     else:
         data["isMin"] = False
 
-    assert (count_pwl_vars == count_pwl_convex_vars + count_pwl_nonconvex_vars)
+    assert count_pwl_vars == count_pwl_convex_vars + count_pwl_nonconvex_vars
     return obj_variables

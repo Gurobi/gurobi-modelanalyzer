@@ -11,16 +11,16 @@
 
 ..  rst-class::  clear-both
 
-   
 
-   
+
+
 Gurobi Modelanalyzer
 ====================
 gurobi-modelanalyzer is a Python package containing different modules
 designed to provide additional insights and model characteristics in
 addition to the functionality available in the Gurobi programming APIs.
 The initial module consists of two functions designed to provide
-explanations of ill conditioned basis matrices.  Additional modules 
+explanations of ill conditioned basis matrices.  Additional modules
 to provide detailed information about model data shall be provided in
 future versions.
 
@@ -32,7 +32,7 @@ future versions.
    illcond
    contactus
    license
-   
+
 Indices and tables
 ==================
 

@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Gurobi Model Analyzer'
+project = "Gurobi Model Analyzer"
 copyright = "2023, Gurobi Optimization, LLC. All Rights Reserved."
 html_logo = "_static/gurobi-logo-title.png"
 
@@ -32,13 +32,12 @@ extlinks = {
 }
 
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
-
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]

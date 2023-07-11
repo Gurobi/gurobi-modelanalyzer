@@ -19,9 +19,8 @@ def read_comments(filename):
 
     with open(filename, "r") as modelfile:
         for line in modelfile:
-
             current_line += 1
-            line = line.rstrip('\n')
+            line = line.rstrip("\n")
 
             if len(line) > 0 and not line[0].isalnum():
                 comment_lines.append(line)
@@ -37,8 +36,20 @@ def read_comments(filename):
 def process_mps_details(modelfile, data):
     print("Processing MPS file details...")
 
-    blocks = {"NAME", "ROWS", "COLUMNS", "RHS", "RANGES", "BOUNDS", "SOS",
-              "QMATRIX", "QSECTION", "QUADOBJ", "QCMATRIX", "ENDATA"}
+    blocks = {
+        "NAME",
+        "ROWS",
+        "COLUMNS",
+        "RHS",
+        "RANGES",
+        "BOUNDS",
+        "SOS",
+        "QMATRIX",
+        "QSECTION",
+        "QUADOBJ",
+        "QCMATRIX",
+        "ENDATA",
+    }
 
     blocks_ignored = {"OBJSENSE"}
 
@@ -48,7 +59,8 @@ def process_mps_details(modelfile, data):
     with open(modelfile) as mpsfile:
         for line in mpsfile:
             line_counter += 1
-            if line[0] == ' ': continue
+            if line[0] == " ":
+                continue
             statement = line[:10].upper().rstrip("\n").split(" ")[0].strip()
             if len(statement) > 0:
                 result[statement].append(line_counter)
@@ -74,18 +86,26 @@ def process_mps_details(modelfile, data):
 def process_lp_details(modelfile, data):
     print("Processing LP file details...")
 
-    blocks = [["Minimize", "Minimum", "Min"],
-              ["Maximize", "Maximum", "Max"],
-              ["Subject To", "Such That", "st.", "st", "s.t.", ],
-              ["Lazy Constraints"],
-              ["Cones"],
-              ["Bounds", "Bound"],
-              ["Binaries", "Binary", "Bin"],
-              ["Generals", "General", "Gen", "Integers"],
-              ["Semi-Continuous", "Semis", "Semi"],
-              ["SOS"],
-              ["PWLObj"],
-              ["End"]];
+    blocks = [
+        ["Minimize", "Minimum", "Min"],
+        ["Maximize", "Maximum", "Max"],
+        [
+            "Subject To",
+            "Such That",
+            "st.",
+            "st",
+            "s.t.",
+        ],
+        ["Lazy Constraints"],
+        ["Cones"],
+        ["Bounds", "Bound"],
+        ["Binaries", "Binary", "Bin"],
+        ["Generals", "General", "Gen", "Integers"],
+        ["Semi-Continuous", "Semis", "Semi"],
+        ["SOS"],
+        ["PWLObj"],
+        ["End"],
+    ]
 
     max_length = max([len(keyword) for block in blocks for keyword in block]) + 1
     line_counter = 0
@@ -95,16 +115,19 @@ def process_lp_details(modelfile, data):
     with open(modelfile) as lpfile:
         for line in lpfile:
             line_counter += 1
-            if line[0] == ' ': continue
-            statement = line[:max_length];
+            if line[0] == " ":
+                continue
+            statement = line[:max_length]
             for index in range(len(blocks)):
                 for keyword in blocks[index]:
                     if statement.lower().startswith(keyword.lower()) and (
-                            statement[len(keyword)] == ' ' or statement[len(keyword)] == '\n'):
-                        result[index] = [statement[:len(keyword)], line_counter];
+                        statement[len(keyword)] == " "
+                        or statement[len(keyword)] == "\n"
+                    ):
+                        result[index] = [statement[: len(keyword)], line_counter]
                         break
 
-    block_lines = [];
+    block_lines = []
 
     for i in range(len(blocks)):
         if result[i]:
@@ -113,13 +136,13 @@ def process_lp_details(modelfile, data):
             block_lines.append([blocks[i][0], False])
 
     data["fileLines"] = line_counter
-    data["lpSections"] = block_lines;
+    data["lpSections"] = block_lines
 
 
 def process_opb_details(modelfile, data):
     print("Processing OPB file details...")
 
-    line_counter = 0;
+    line_counter = 0
 
     with open(modelfile) as opbfile:
         for line in opbfile:
@@ -129,7 +152,14 @@ def process_opb_details(modelfile, data):
 
 
 def get_file_type(filename):
-    mod_exts = {".mps": "MPS", ".rew": "MPS", ".lp": "LP", ".rlp": "LP", ".ilp": "LP", ".opb": "OPB"}
+    mod_exts = {
+        ".mps": "MPS",
+        ".rew": "MPS",
+        ".lp": "LP",
+        ".rlp": "LP",
+        ".ilp": "LP",
+        ".opb": "OPB",
+    }
     zip_exts = [".zip", ".gz", ".bz2", ".7z"]
 
     compression = None
@@ -141,7 +171,7 @@ def get_file_type(filename):
     for zip_ext in zip_exts:
         if filename_lc.endswith(zip_ext):
             compression = zip_ext[1:]
-            filename_lc = filename_lc[:-len(zip_ext)]
+            filename_lc = filename_lc[: -len(zip_ext)]
             break
 
     # Check known extensions
@@ -164,7 +194,7 @@ def process_uncompressed_model(modelfile, data):
     hasher_sha1 = hashlib.sha1()
 
     print("Calculating hash values...")
-    with open(modelfile, 'rb') as file:
+    with open(modelfile, "rb") as file:
         buf = file.read(BLOCKSIZE)
         while len(buf) > 0:
             hasher_md5.update(buf)
@@ -185,23 +215,22 @@ def process_uncompressed_model(modelfile, data):
 
 def process_compressed_model(compression, modelfile, data):
     tmpmodelfile_fd, tmpmodelfile_path = tempfile.mkstemp()
-    tmpmodelfile = os.fdopen(tmpmodelfile_fd, 'wb')
+    tmpmodelfile = os.fdopen(tmpmodelfile_fd, "wb")
     tmpmodelfile_archive = None
 
     try:
-
         compressed_file = None
 
         # GZIP, BZIP2, ZIP
         if compression == "gz":
             print("Uncompressing GZIP file...")
-            compressed_file = gzip.open(modelfile, 'rb')
+            compressed_file = gzip.open(modelfile, "rb")
         elif compression == "bz2":
             print("Uncompressing BZIP2 file...")
-            compressed_file = bz2.BZ2File(modelfile, 'rb')
+            compressed_file = bz2.BZ2File(modelfile, "rb")
         elif compression == "zip":
             print("Uncompressing ZIP file...")
-            tmpmodelfile_archive = zipfile.ZipFile(modelfile, 'r')
+            tmpmodelfile_archive = zipfile.ZipFile(modelfile, "r")
             firstFile = tmpmodelfile_archive.infolist()[0]
             compressed_file = tmpmodelfile_archive.open(firstFile)
 
@@ -213,7 +242,6 @@ def process_compressed_model(compression, modelfile, data):
                 return
 
     finally:
-
         data["fileSizeUncompressed"] = os.stat(tmpmodelfile_path).st_size
 
         os.remove(tmpmodelfile_path)

@@ -7,11 +7,13 @@ def process_variable_types(m, data, objective_variables, constraint_variables):
     print("Processing model variables...")
 
     # Count variable type
-    variable_types = {gp.GRB.INTEGER: 'Gen',
-                      gp.GRB.BINARY: 'Bin',
-                      gp.GRB.CONTINUOUS: 'Con',
-                      gp.GRB.SEMICONT: 'SemiCont',
-                      gp.GRB.SEMIINT: 'SemiInt'}
+    variable_types = {
+        gp.GRB.INTEGER: "Gen",
+        gp.GRB.BINARY: "Bin",
+        gp.GRB.CONTINUOUS: "Con",
+        gp.GRB.SEMICONT: "SemiCont",
+        gp.GRB.SEMIINT: "SemiInt",
+    }
 
     variable_count = {VType: 0 for VType in variable_types.keys()}
 
@@ -21,7 +23,6 @@ def process_variable_types(m, data, objective_variables, constraint_variables):
     redundant_vars = []
 
     for var in m.getVars():
-
         variable_count[common.get_vtype(var)] += 1
 
         if var.Obj == 0:
@@ -33,18 +34,15 @@ def process_variable_types(m, data, objective_variables, constraint_variables):
                         redundant_vars.append(var)
 
         if var.LB == -gp.GRB.INFINITY:
-
             if var.UB == gp.GRB.INFINITY:
                 variable_boundcount["Free"] += 1
             else:
                 variable_boundcount["UBOnly"] += 1
 
         else:
-
             if var.UB == gp.GRB.INFINITY:
                 variable_boundcount["LBOnly"] += 1
             else:
-
                 if var.LB == var.UB:
                     variable_boundcount["Fixed"] += 1
                 else:
@@ -57,6 +55,8 @@ def process_variable_types(m, data, objective_variables, constraint_variables):
         data["num%sVars" % btype] = count
 
     # Check for redundant variables (not in objective, not in any constraint)
-    redundant_vars = list(set(m.getVars()).difference(objective_variables, constraint_variables))
+    redundant_vars = list(
+        set(m.getVars()).difference(objective_variables, constraint_variables)
+    )
     data["numRedundantVars"] = len(redundant_vars)
     data["redundantVars"] = [x.VarName for x in redundant_vars[:10]]

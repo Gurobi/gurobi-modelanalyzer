@@ -7,15 +7,15 @@ from model_analyzer import common
 
 def get_rhs_frequencies(model, base=10):
     rhs_count = defaultdict(int)
-    rhs_vals  = []
-    result    = []
+    rhs_vals = []
+    result = []
 
     for constr in model.getConstrs():
         if constr.RHS != 0:
             rhs_vals.append(constr.RHS)
-            
+
     result = common.get_vector_frequencies(rhs_vals, base)
-            
+
     return result
 
 
@@ -37,10 +37,9 @@ def get_a_frequencies(model, base, topx):
         for i in range(row.size()):
             coeff = row.getCoeff(i)
             if coeff != 0:
-
                 exponent = int(math.floor(math.log(abs(coeff), base)))
 
-                if row.getVar(i).VType == 'C':
+                if row.getVar(i).VType == "C":
                     cont_coeff_count[exponent] += 1
                 else:
                     int_coeff_count[exponent] += 1
@@ -59,24 +58,37 @@ def get_a_frequencies(model, base, topx):
             range_count[max_exponent - min_exponent] += 1
 
             if topx > 0:
-                rows.append({"constr_name": constr.ConstrName,
-                             "range": max_exponent - min_exponent,
-                             "min_exponent": min_exponent,
-                             "min_abs_coeff": min_abs_coeff,
-                             "min_var": min_var.VarName,
-                             "min_var_type": min_var.VType,
-                             "max_exponent": max_exponent,
-                             "max_abs_coeff": max_abs_coeff,
-                             "max_var": max_var.VarName,
-                             "max_var_type": max_var.VType
-                             })
+                rows.append(
+                    {
+                        "constr_name": constr.ConstrName,
+                        "range": max_exponent - min_exponent,
+                        "min_exponent": min_exponent,
+                        "min_abs_coeff": min_abs_coeff,
+                        "min_var": min_var.VarName,
+                        "min_var_type": min_var.VType,
+                        "max_exponent": max_exponent,
+                        "max_abs_coeff": max_abs_coeff,
+                        "max_var": max_var.VarName,
+                        "max_var_type": max_var.VType,
+                    }
+                )
 
-    cont_coeff_result = [[exponent, cont_coeff_count[exponent]] for exponent in
-                         range(min(cont_coeff_count.keys()), max(cont_coeff_count.keys()) + 1)]
-    int_coeff_result = [[exponent, int_coeff_count[exponent]] for exponent in
-                        range(min(int_coeff_count.keys()), max(int_coeff_count.keys()) + 1)]
-    range_result = [[exponent, range_count[exponent]] for exponent in
-                    range(min(range_count.keys()), max(range_count.keys()) + 1)]
+    cont_coeff_result = [
+        [exponent, cont_coeff_count[exponent]]
+        for exponent in range(
+            min(cont_coeff_count.keys()), max(cont_coeff_count.keys()) + 1
+        )
+    ]
+    int_coeff_result = [
+        [exponent, int_coeff_count[exponent]]
+        for exponent in range(
+            min(int_coeff_count.keys()), max(int_coeff_count.keys()) + 1
+        )
+    ]
+    range_result = [
+        [exponent, range_count[exponent]]
+        for exponent in range(min(range_count.keys()), max(range_count.keys()) + 1)
+    ]
 
     # Get the TOP x results
     if topx > 0:
@@ -103,10 +115,17 @@ def process_coefficients(model, data):
     top_x = 10
 
     for i in [2, 10]:
-        data["objContinuousExponentsLog" + str(i)], data["objIntegerExponentsLog" + str(i)] = \
-            common.get_obj_c_frequencies(model, i)
+        (
+            data["objContinuousExponentsLog" + str(i)],
+            data["objIntegerExponentsLog" + str(i)],
+        ) = common.get_obj_c_frequencies(model, i)
 
-        a_cont_coeff_count, a_int_coeff_count, a_range_count, top_ranges = get_a_frequencies(model, i, top_x)
+        (
+            a_cont_coeff_count,
+            a_int_coeff_count,
+            a_range_count,
+            top_ranges,
+        ) = get_a_frequencies(model, i, top_x)
 
         data["linearConstraintsContinuousExponentsLog" + str(i)] = a_cont_coeff_count
         data["linearConstraintsIntegerExponentsLog" + str(i)] = a_int_coeff_count
@@ -184,7 +203,6 @@ def process_linear_constraints(model, data):
 
     # Loop through all linear constraints
     for constraint in model.getConstrs():
-
         if constraint.Sense == gp.GRB.EQUAL:
             counter_equality += 1
         else:
@@ -217,15 +235,18 @@ def process_linear_constraints(model, data):
         lhs_ub = row.getConstant()
 
         for i in range(row.size()):
-
             var = row.getVar(i)
             coefficient = row.getCoeff(i)
 
             if lhs_lb > -gp.GRB.INFINITY:
-                lhs_lb = max(-gp.GRB.INFINITY, lhs_lb + common.min_value(var, coefficient))
+                lhs_lb = max(
+                    -gp.GRB.INFINITY, lhs_lb + common.min_value(var, coefficient)
+                )
 
             if lhs_ub < gp.GRB.INFINITY:
-                lhs_ub = min(gp.GRB.INFINITY, lhs_ub + common.max_value(var, coefficient))
+                lhs_ub = min(
+                    gp.GRB.INFINITY, lhs_ub + common.max_value(var, coefficient)
+                )
 
             if coefficient != 0:
                 constraint_variables.add(var)
@@ -248,21 +269,33 @@ def process_linear_constraints(model, data):
                 num_intvars += 1
 
         # Check if constraint is redundant
-        if (constraint.Sense == gp.GRB.LESS_EQUAL and lhs_ub <= constraint.RHS or
-                constraint.Sense == gp.GRB.GREATER_EQUAL and lhs_lb >= constraint.RHS or
-                constraint.Sense == gp.GRB.EQUAL and lhs_lb == constraint.RHS and lhs_ub == constraint.RHS):
+        if (
+            constraint.Sense == gp.GRB.LESS_EQUAL
+            and lhs_ub <= constraint.RHS
+            or constraint.Sense == gp.GRB.GREATER_EQUAL
+            and lhs_lb >= constraint.RHS
+            or constraint.Sense == gp.GRB.EQUAL
+            and lhs_lb == constraint.RHS
+            and lhs_ub == constraint.RHS
+        ):
             counter_redundant += 1
             redundant_constraints.append(constraint)
 
         # Check if constraint is infeasible
-        if (constraint.Sense == gp.GRB.LESS_EQUAL and lhs_lb > constraint.RHS or
-                constraint.Sense == gp.GRB.GREATER_EQUAL and lhs_ub < constraint.RHS or
-                constraint.Sense == gp.GRB.EQUAL and (lhs_ub < constraint.RHS or lhs_lb > constraint.RHS)):
+        if (
+            constraint.Sense == gp.GRB.LESS_EQUAL
+            and lhs_lb > constraint.RHS
+            or constraint.Sense == gp.GRB.GREATER_EQUAL
+            and lhs_ub < constraint.RHS
+            or constraint.Sense == gp.GRB.EQUAL
+            and (lhs_ub < constraint.RHS or lhs_lb > constraint.RHS)
+        ):
             counter_infeasible += 1
             infeasible_constraints.append(constraint)
 
         # Continue only for constraints that contain at least two variables
-        if row.size() < 2: continue
+        if row.size() < 2:
+            continue
 
         # Int-Only / Cont-Only / Mixed
         if num_binvars + num_intvars == 0:
@@ -274,24 +307,26 @@ def process_linear_constraints(model, data):
 
         # All variables binary?
         if num_binvars == row.size():
-
             counter_bin_only += 1
 
             sense = constraint.Sense
 
             if rhs < 0:
                 factor = -1
-                if sense == gp.GRB.LESS_EQUAL: sense = gp.GRB.GREATER_EQUAL
-                if sense == gp.GRB.GREATER_EQUAL: sense = gp.GRB.LESS_EQUAL
+                if sense == gp.GRB.LESS_EQUAL:
+                    sense = gp.GRB.GREATER_EQUAL
+                if sense == gp.GRB.GREATER_EQUAL:
+                    sense = gp.GRB.LESS_EQUAL
             else:
                 factor = 1
 
             # All coefficients 1?
-            if abs(min_coefficient - max_coefficient) < 1e-10 and abs(min_coefficient - factor) < 1e-10:
-
+            if (
+                abs(min_coefficient - max_coefficient) < 1e-10
+                and abs(min_coefficient - factor) < 1e-10
+            ):
                 # RHS = 1?
                 if abs(rhs - factor) < 1e-10:
-
                     if constraint.Sense == gp.GRB.EQUAL:
                         counter_set_partitioning += 1
                     elif constraint.Sense == gp.GRB.LESS_EQUAL:
@@ -302,7 +337,6 @@ def process_linear_constraints(model, data):
 
                 # RHS integer?
                 elif is_rhs_integer:
-
                     if constraint.Sense == gp.GRB.EQUAL:
                         counter_binsum += 1
                     elif constraint.Sense == gp.GRB.LESS_EQUAL:
@@ -312,27 +346,50 @@ def process_linear_constraints(model, data):
                     continue
 
             # Binary knapsack constraints (all variables binary, all coefficients + RHS integer)
-            if is_row_coeff_integer and (
-                    (is_row_all_positive and rhs > 0) or (is_row_all_negative and rhs < 0)) and is_rhs_integer:
+            if (
+                is_row_coeff_integer
+                and (
+                    (is_row_all_positive and rhs > 0)
+                    or (is_row_all_negative and rhs < 0)
+                )
+                and is_rhs_integer
+            ):
                 counter_bin_knapsack += 1
 
         # All variables integer?
         if num_intvars == row.size():
-
             # Knapsack constraints (all variables binary, all coefficients + RHS integer)
-            if is_row_coeff_integer and (
-                    (is_row_all_positive and rhs > 0) or (is_row_all_negative and rhs < 0)) and is_rhs_integer:
+            if (
+                is_row_coeff_integer
+                and (
+                    (is_row_all_positive and rhs > 0)
+                    or (is_row_all_negative and rhs < 0)
+                )
+                and is_rhs_integer
+            ):
                 counter_int_knapsack += 1
 
-
     # TOP 5 redundant constraints
-    redundant_constraints = (sorted(redundant_constraints, key=lambda constraint: model.getRow(constraint).size()))[:5]
-    data["redundantConstraints"] = [constraint.ConstrName for constraint in redundant_constraints]
+    redundant_constraints = (
+        sorted(
+            redundant_constraints,
+            key=lambda constraint: model.getRow(constraint).size(),
+        )
+    )[:5]
+    data["redundantConstraints"] = [
+        constraint.ConstrName for constraint in redundant_constraints
+    ]
 
     # TOP 5 infeasible constraints
-    infeasible_constraints = (sorted(infeasible_constraints, key=lambda constraint: model.getRow(constraint).size()))[
-                             :5]
-    data["infeasibleConstraints"] = [constraint.ConstrName for constraint in infeasible_constraints]
+    infeasible_constraints = (
+        sorted(
+            infeasible_constraints,
+            key=lambda constraint: model.getRow(constraint).size(),
+        )
+    )[:5]
+    data["infeasibleConstraints"] = [
+        constraint.ConstrName for constraint in infeasible_constraints
+    ]
 
     data["numEqConstrs"] = counter_equality
     data["numIneqConstrs"] = counter_inequality
@@ -361,19 +418,18 @@ def process_linear_constraints(model, data):
     return constraint_variables
 
 
-
 def process_quadratic_constraints(model, data):
-#
-#   TODO: identify infeasible and redundant QCs.    
-#   Not sure worth doing for QCs, but what about semi cont. and
-#   semi int variables?
-#
+    #
+    #   TODO: identify infeasible and redundant QCs.
+    #   Not sure worth doing for QCs, but what about semi cont. and
+    #   semi int variables?
+    #
 
     print("Processing model quadratic constraints...")
 
     quadpart_variables = set()
-    linpart_variables  = set()
-    
+    linpart_variables = set()
+
     redundant_constraints = []
     infeasible_constraints = []
 
@@ -396,24 +452,23 @@ def process_quadratic_constraints(model, data):
         counter_mixed = -1
 
     # Only (>= 2) continuous variables
-    
+
     if model.NumVars - model.NumIntVars - model.NumBinVars >= 2:
         counter_cont_only = 0
     else:
-        counter_cont_only = -1   # Can't have bilinear terms with 2 cont. vars
+        counter_cont_only = -1  # Can't have bilinear terms with 2 cont. vars
 
     # Only (>= 2) binary variables
     if model.NumBinVars >= 2:
         counter_bin_only = 0
     else:
-        counter_bin_only = -1      # Can't have any binary bilinear terms
-            
-    
+        counter_bin_only = -1  # Can't have any binary bilinear terms
+
     # Only (>= 2) integer variables (including binaries)
     if model.NumIntVars >= 1:
         counter_int_only = 0
     else:
-        counter_int_only = -1      # Can't have any integer bilinear terms  
+        counter_int_only = -1  # Can't have any integer bilinear terms
 
     # No linear terms in the QC (bot not totally empty)
 
@@ -436,29 +491,28 @@ def process_quadratic_constraints(model, data):
 
     # Loop through all quadratic constraints
 
-    BIN_ONLY  = 1
-    INT_ONLY  = 2
+    BIN_ONLY = 1
+    INT_ONLY = 2
     CONT_ONLY = 4
-    MIXED     = 8
+    MIXED = 8
     for qconstraint in model.getQConstrs():
-
-        qcrow    = model.getQCRow(qconstraint)
-        row      = qcrow.getLinExpr()
-        qlen     = qcrow.size()
-        linlen   = row.size()
-        bittype  = 0
+        qcrow = model.getQCRow(qconstraint)
+        row = qcrow.getLinExpr()
+        qlen = qcrow.size()
+        linlen = row.size()
+        bittype = 0
         qclhs_lb = row.getConstant()
         qclhs_ub = row.getConstant()
 
         # Loop quadratic terms
-        
-        if qlen == 1:     #  Check for QC singleton that is a simple bound
+
+        if qlen == 1:  #  Check for QC singleton that is a simple bound
             if qcrow.getCoeff(0) != 0:
                 v1 = qcrow.getVar1(0)
                 v2 = qcrow.getVar2(0)
                 if v1.VarName == v2.VarName and linlen == 0:
                     counter_bound += 1
-                if v1.vType == gp.GRB.BINARY:                    
+                if v1.vType == gp.GRB.BINARY:
                     counter_common_bin += 1
                     if v2.vType == gp.GRB.BINARY:
                         bittype != BIN_ONLY
@@ -467,14 +521,14 @@ def process_quadratic_constraints(model, data):
                 elif v2.vType == gp.GRB.BINARY:
                     counter_common_bin += 1
                     bittype != MIXED
-                else:       # QC singleton of two continuous variables
+                else:  # QC singleton of two continuous variables
                     bittype != CONT_ONLY
-            elif linlen == 0:    
+            elif linlen == 0:
                 counter_empty += 1
-            else:      #  Empty quad part with nonempty linear part
+            else:  #  Empty quad part with nonempty linear part
                 counter_lin_only += 1
-        else:      # Multiple QC terms; count all pairwise combos
-            binvardict = defaultdict(int)      # for common binary factors
+        else:  # Multiple QC terms; count all pairwise combos
+            binvardict = defaultdict(int)  # for common binary factors
             for j in range(qlen):
                 if qcrow.getCoeff(j) != 0:
                     v1 = qcrow.getVar1(j)
@@ -496,21 +550,19 @@ def process_quadratic_constraints(model, data):
                                 binvardict[v2.VarName] += 1
                             continue
                     if counter_bin_only >= 0:
-                        if v1.Vtype == gp.GRB.BINARY and \
-                           v2.VType == gp.GRB.BINARY:
+                        if v1.Vtype == gp.GRB.BINARY and v2.VType == gp.GRB.BINARY:
                             bittype |= BIN_ONLY
                             binvardict[v1.VarName] += 1
                             if v1.VarName != v2.VarName:
                                 binvardict[v1.VarName] += 1
                             continue
                     if counter_int_only >= 0:
-                        if v1.Vtype == gp.GRB.INTEGER and \
-                           v2.VType == gp.GRB.INTEGER:
+                        if v1.Vtype == gp.GRB.INTEGER and v2.VType == gp.GRB.INTEGER:
                             bittype |= INT_ONLY
                             continue
             if len(binvardict) == qlen:
                 counter_common_bin += 1
-            
+
         # Finished processing this QC; update the counts of the different
         # types of bilinear terms
 
@@ -522,10 +574,9 @@ def process_quadratic_constraints(model, data):
             counter_cont_only += 1
         elif bittype == MIXED:
             counter_mixed += 1
-        else:          # Anything that doesn't fit one of the above QC types
+        else:  # Anything that doesn't fit one of the above QC types
             counter_other += 1
 
-            
         # Loop linear terms.   Record contribution of linear part of QC
         # to the QC inf and sup (any constant term already recorded at
         # initialization of inf and sup).
@@ -562,33 +613,33 @@ def process_quadratic_constraints(model, data):
         else:
             if linlen == 0:
                 counter_quad_only += 1
-#
-#   Final results.  Counters that are at -1 were flagged as
-#   not needing counting due to the numbers of different types of
-#   variables in the model (e.g. you can't have constraints involving
-#   bilinear terms of continuous variables when the model is all binary,
-#   so flag that and don't bother counting in the inner loop across the QC
-#
-    data["numQCEqConstraints"]    = counter_equality
-    data["numQCInEqConstraints"]  = counter_inequality
-    data["numQCEmptyConstrs"]     = counter_empty
-    data["numQCBndConstrs"]       = counter_bound
+    #
+    #   Final results.  Counters that are at -1 were flagged as
+    #   not needing counting due to the numbers of different types of
+    #   variables in the model (e.g. you can't have constraints involving
+    #   bilinear terms of continuous variables when the model is all binary,
+    #   so flag that and don't bother counting in the inner loop across the QC
+    #
+    data["numQCEqConstraints"] = counter_equality
+    data["numQCInEqConstraints"] = counter_inequality
+    data["numQCEmptyConstrs"] = counter_empty
+    data["numQCBndConstrs"] = counter_bound
     if counter_cont_only == -1:
         counter_cont_only = 0
-    data["numQCContConstrs"]      = counter_cont_only
-    data["numQCIntConstrs"]       = counter_int_only
+    data["numQCContConstrs"] = counter_cont_only
+    data["numQCIntConstrs"] = counter_int_only
     if counter_bin_only == -1:
         counter_bin_only = 0
-    data["numQCBinConstrs"]       = counter_bin_only
+    data["numQCBinConstrs"] = counter_bin_only
     if counter_mixed == -1:
         counter_mixed = 0
-    data["numQCMixedConstrs"]     = counter_mixed
-    data["numQCOtherConstrs"]     = counter_other
-    data["numQCQuadOnlyConstrs"]  = counter_quad_only
-    data["numQCLinOnlyConstrs"]   = counter_lin_only
-    data["numQCEmptyConstrs"]     = counter_empty
+    data["numQCMixedConstrs"] = counter_mixed
+    data["numQCOtherConstrs"] = counter_other
+    data["numQCQuadOnlyConstrs"] = counter_quad_only
+    data["numQCLinOnlyConstrs"] = counter_lin_only
+    data["numQCEmptyConstrs"] = counter_empty
     if counter_common_bin == -1:
         counter_common_bin = 0
     data["numQCBinFactorConstrs"] = counter_common_bin
-    
+
     return quadpart_variables, linpart_variables
