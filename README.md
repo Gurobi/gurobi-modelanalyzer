@@ -1,3 +1,7 @@
+**⚠ Warning**
+
+```This code is in a pre-release state. It may not be fully functional and breaking changes can occur without notice.```
+
 # Gurobi Model Analyzer
 
 Gurobi Model Analyzer is an
@@ -13,7 +17,7 @@ until version 1.0 is announced as available.
 # Documentation
 
 The latest user manual is available on
-[readthedocs](https://gurobi-modelanalyzer.readthedocs.io/).
+[readthedocs](https://gurobi-optimization-gurobi-modelanalyzer.readthedocs-hosted.com/en/latest/).
 
 
 # Contact us
