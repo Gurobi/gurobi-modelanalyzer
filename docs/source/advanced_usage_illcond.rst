@@ -113,7 +113,7 @@ having to look at most of its contents.
   conditioned basis matrix.  These constraints define a long sequence of
   transfers of variable activity levels, starting with :math:`x_n` and
   ending with :math:`x_1`.   Hence they imply the constraint
-  :math:`x_1=2^nx_n`, which does have a large coefficient ratio.
+  :math:`x_1=2^{n-1}*x_n`, which does have a large coefficient ratio.
   Also, note that if any one of the variables :math:`x_j` in the sequence
   of transfer constraints is positive, all of them will be, and they
   all will be basic.  The associated square submatrix of the LP has the form
@@ -131,7 +131,7 @@ having to look at most of its contents.
 
 Given that the condition number of a square matrix B is
 :math:`||B||*||B^{-1}||`, one can see that the submatrix of transfer
-constraints contributes :math:`2^n` to the overall basis condition
+constraints contributes :math:`2^{n-1}` to the overall basis condition
 number.  Hence it can be a source of ill conditioning for even modest
 values of n.
 
@@ -140,7 +140,7 @@ sequence of transfer constraints from a run on a subproblem of
 a publicly available model where the basis condition number was in
 the order of :math:`10^{31}`.  Note that each variable appears in
 consecutive constraints, and that the coefficients in each constraint
-are the same.  In this model the variables are free variables rather han
+are the same.  In this model the variables are free variables rather than
 being bounded below by 0.
 
 | (mult=1.267949192397407)e11923: 0.221528652 x33590 = 0
