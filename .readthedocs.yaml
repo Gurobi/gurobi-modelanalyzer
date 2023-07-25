@@ -5,9 +5,8 @@ build:
   tools:
     python: "3.9"
 
-formats: all
-
 sphinx:
+  fail_on_warning: false
   configuration: docs/source/conf.py
 
 python:

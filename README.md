@@ -1,16 +1,23 @@
+**⚠ Warning**
+
+```This code is in a pre-release state. It may not be fully functional and breaking changes can occur without notice.```
+
 # Gurobi Model Analyzer
 
 Gurobi Model Analyzer is an
-[open-source](https://gurobi-modelanalyzer.readthedocs.io/en/stable/meta-license.html) python package that provides
+[open-source](https://gurobi-modelanalyzer.readthedocs.io/en/stable/license.html) python package that provides
 detailed analysis of model solutions and model characteristics.
 Version 1.0 consists of a results_analyzer module that calculates
 explanations of ill-conditioned basis matrices.
 
+Note: At the moment this repository is public, but final docs configuration
+and packages is not yet finished.   We recommend that you hold off on using it
+until version 1.0 is announced as available.
 
 # Documentation
 
 The latest user manual is available on
-[readthedocs](https://gurobi-modelanalyzer.readthedocs.io/).
+[readthedocs](https://gurobi-optimization-gurobi-modelanalyzer.readthedocs-hosted.com/en/latest/).
 
 
 # Contact us
