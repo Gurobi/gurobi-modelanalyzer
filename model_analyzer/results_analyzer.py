@@ -1379,7 +1379,96 @@ def angle_explain(model, howmany=1, partol=1e-6):
         print("Time for main column based loop = ", endtime - starttime)
 
     return almostparrowlist, almostparcollist, explmodel
+#
+#   Utility routine to facilitate examination of explainer output.
+#   Provides a bitmap of the explanation matrix.  Requires matplotlib
+#   to be on the machine and to be able to display output.
+#
+def matrix_bitmap(model):
+    #
+    #   Help function info
+    #
+    """Utility routine to facilitate examination of explainer output by
+    printing a bitmap of the nonzero structure.   Can also be used to 
+    obtain bitmaps for matrices of arbitrary models rather than the 
+    explainer model.
+  
 
+    Arguments:
+    model      (required) The model whose constraint matrix will generate
+                          the bitmap.  Note that the routine may remove 
+                          empty rows and columns from the constraint matrix
+                          of the model, so make a copy of the model before
+                          calling the routine if necessary.
+    Returns:              Nothing.  The bitmap appears on the screen and
+                          can be saved to a file."""
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as e:
+        print("Need matplotlib.pyplot installed to display bitmap.")
+        return
+#
+#   
+#
+#   We only want the bitmap for variables that intersect at least one
+#   constraint.
+#
+    varstodelete = []
+    for var in model.getVars():
+        col = model.getCol(var)
+        if col.size() == 0:
+            varstodelete.append(var)
+    model.remove(varstodelete)
+    model.update()
+#
+#   Similarly, we only want constraints that intersect at least one
+#   variable.
+#
+    constodelete = []
+    for con in model.getConstrs():
+        row = model.getRow(con)
+        if row.size() == 0:
+            constodelete.append(con)
+    model.remove(constodelete)
+    model.update()
+
+    if model.ModelName == "":
+        modelname = "model"
+    else:
+        modelname = model.ModelName
+    if _debug != OFF:
+        model.printStats()
+#
+#   Now do the plot.
+#
+    A = model.getA()
+    plt.spy(A, markersize=1)
+    plt.title(modelname)
+    plt.show()
+
+
+#
+#   Utility function that takes a list of decimal values and converts
+#   uses the Fraction package to provide a rational approximation.
+#
+from fractions import Fraction
+
+def converttofractions(vals):
+    #
+    #   Help function info
+    #
+    """Utility routine to convert decimal values to fractions.
+  
+    Arguments:
+    vals       (required) Array of decimal values to convert
+    Returns:              Nothing; prints results to screen."""
+    for v in vals:
+        if not isinstance(v, float):
+            print("Value ", v, " is not a float.  Cannot convert.")
+            continue
+        frac = Fraction(v).limit_denominator()
+        print(f"The approx fraction of {v} is {frac}.")
+    
 
 #
 #   Improve the readability of the output
