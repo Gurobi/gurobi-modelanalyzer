@@ -1448,7 +1448,7 @@ def matrix_bitmap(model):
 
 
 #
-#   Utility function that takes a list of decimal values and converts
+#   Utility function that takes a list of decimal values and 
 #   uses the Fraction package to provide a rational approximation.
 #
 from fractions import Fraction

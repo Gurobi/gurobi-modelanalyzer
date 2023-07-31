@@ -177,6 +177,16 @@ these constraints in the context of the whole model, and why the activities
 at the start of the sequence are implicitly being rescaled to much larger
 values at the end of the sequence.
 
+The :ref:`APIRefLabel` also includes two utility functions that can help with
+interpreting the explainer output.  The
+:ref:`matrix_bitmap <APImatrix_bitmapLabel>`
+function provides a bit map of the explanation's matrix nonzero structure;
+this can be useful for detecting long sequences of transfer constraints,
+which will frequently exhibit a block diagonal matrix nonzero structure.
+The :ref:`converttofractions <APIconverttofractionsLabel>` function converts
+decimal values to their nearest rational representation; this can help with imprecise rounding,
+particularly when repeating decimals are involved.
+
 For a more detailed discussion of common sources of ill conditioning
 in LPs and MILPs, see Section 4 of
 https://pubsonline.informs.org/doi/10.1287/educ.2014.0130.
