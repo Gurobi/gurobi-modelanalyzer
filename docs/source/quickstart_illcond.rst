@@ -11,22 +11,22 @@ Introduction
 The Ill Conditioning Explainer can be used to obtain an explanation
 of ill conditioned basis matrices for linear programs (LP).  It can be used
 on the initial relaxation of a mixed integer program (MIP) by invoking the
-Model.relax() function on the MIP to obtain the LP relaxation.  Other
+``Model.relax()`` function on the MIP to obtain the LP relaxation.  Other
 problem types are not currently supported, although models with convex
 quadratic objective functions can be turned into related LPs by replacing
 the convex quadratic objective expression with a linear expression (including
 just removing the quadratic part).  The currently implemented approach
 uses the fact that an ill conditioned square matrix has linear combination
 of a subset of rows or columns that is close to 0.  Mathematically,
-for a square matrix B, itcalculates a nonzero linear combination vector y such
-that :math:`||B^{T}y||_{\infty} \leq \epsilon` and :math:`||y|| >> \epsilon`.
-The vector y can be viewed as a certificate of ill conditioning.  The elements
-of y that are zero correspond to rows of the matrix B that do not
+for a square matrix :math:`B`, it calculates a nonzero linear combination vector :math:`y` such
+that :math:`||B^{T}y||_{\infty} \leq \epsilon` and :math:`||y|| \gg \epsilon`.
+The vector :math:`y` can be viewed as a certificate of ill conditioning.  The elements
+of :math:`y` that are zero correspond to rows of the matrix :math:`B` that do not
 contribute to the ill conditioning.   The Ill Conditioning Explainer filters
-out the rows corresponding to the zero elements of y.   The remaining rows
+out the rows corresponding to the zero elements of :math:`y`.   The remaining rows
 provide an explanation of the ill conditioning.   One can similarly calculate
-a nonzero linear combination of the columns of B and derive subset of the
-columns of B to explain the ill conditioning.   The Ill Conditioning
+a nonzero linear combination of the columns of :math:`B` and derive subset of the
+columns of :math:`B` to explain the ill conditioning.   The Ill Conditioning
 Explainer can do both.   For the special case of ill conditioning due to
 pairs of almost parallel rows or columns, a separate method is available.
 
@@ -39,8 +39,8 @@ Additional methods will be described later in the :doc:`advanced_usage_illcond`
 section. The :ref:`kappa_explain <APIkappa_explainLabel>` method looks for
 explanations of
 arbitrary size. By default it will provide a row-based explanation, but a
-column-based explanation can be obtained by setting the expltype function
-argument to "COLS".   Here is the simplest sequence of commands to do this.
+column-based explanation can be obtained by setting the ``expltype`` function
+argument to ``"COLS"``.   Here is the simplest sequence of commands to do this.
 
 
 .. code-block:: python
@@ -59,10 +59,10 @@ If a column-based explanation is preferred, call
 
    kappa_explain(m, expltype="COLS")
 
-One can request both types of explanations by consecutive kappa_explain calls
+One can request both types of explanations by consecutive ``kappa_explain`` calls
 in a single code fragment.
 
-The angle_explain method can be called with just the model argument, in which
+The ``angle_explain`` method can be called with just the model argument, in which
 case it will stop and return the first pair of almost parallel rows or columns.
 Or it can be called with a numerical argument specifying the number of pairs
 of near parallel rows and columns to return.
@@ -71,12 +71,12 @@ of near parallel rows and columns to return.
 Interpreting the Output
 ***********************
 
-The kappa_explain method outputs a file of the rows or columns of the basis
+The ``kappa_explain`` method outputs a file of the rows or columns of the basis
 matrix that explain the ill conditioning using the most suitable problem
 file format.  Row based explanations are written in LP format, while column
 based explanations are written in MPS format.   The file name consists of
-the name of the model as specified in the gurobipy Model.modelName attribute,
-suffixed by "_kappaexplain", followed by the file format (.lp or .mps).
+the name of the model as specified in the gurobipy ``Model.modelName`` attribute,
+suffixed by ``"_kappaexplain"``, followed by the file format (.lp or .mps).
 The method also returns the model associated with the LP or MPS file that
 was written.
 
@@ -89,7 +89,7 @@ specifies the value of the element in the y vector that comprises the
 certificate of infeasibility mentioned in the :ref:`QSIntroductionLabel`
 section.  These are the row multipliers of the linear combination that
 results in the first row of the LP file, which has the name
-"GRB_Combined_Row".  The rows are listed in descending order by
+``GRB_Combined_Row``.  The rows are listed in descending order by
 largest absolute multiplier.   Here is an example of the constraints in
 such an LP file::
 
@@ -110,15 +110,15 @@ explanation, and examination of these reveals that they intersect the
 same 3 variables, and that the rows are almost parallel.  This is thie
 cause of the ill conditioning.  Remedies depend on the model in
 general, but in this case the modeler should focus on whether the
-coefficient of 0.999999999 in constraint R09bad has a meaningful
-difference fromn the coefficient in constraint R09, or if the
+coefficient of 0.999999999 in constraint ``R09bad`` has a meaningful
+difference fromn the coefficient in constraint ``R09``, or if the
 difference involves roundoff error in the data computation for the
 model.  In the former case, the model needs to reflect that difference
 in a way that it is larger; in the latter case the coefficient should
 be cleaned up to the true value of 1.0.
 
 The column based explanation is analagous, with an MPS file consisting
-of a combined column named "GRB_Combined_Column" followed by the individual
+of a combined column named ``GRB_Combined_Column`` followed by the individual
 columns in the explanation.   Here is the explanation for the same model::
 
   COLUMNS
@@ -159,23 +159,22 @@ columns in the explanation.   Here is the explanation for the same model::
 For this model, the row-based explanation is easier to interpret, so
 we will not examine the column-based explanation in detail.  However,
 note that the problematic coefficient of 0.999999999 in constraint
-R09bad does appear in the column-based output.
+``R09bad`` does appear in the column-based output.
 
-The angle_explain method does not output an LP or MPS file containing
+The ``angle_explain`` method does not output an LP or MPS file containing
 the basis matrix rows or columns that explain the ill conditioning,
 as it is capable of providing multiple (simple) explanations at once.
 Rather, it returns separate tuplelists of pairs of almost parallel rows and
 almost parallel columns, followed by the model associated with the basis
 matrix that generated those tuplelists.   Note that one or both tuplelists
 may be empty if no almost parallel rows or columns were detected.
-Running the angle_explain method on the same model that generated the
+Running the ``angle_explain`` method on the same model that generated the
 previous LP and MPS files::
 
    >>> ma.angle_explain(m)
        ([(<gurobi.Constr R09>, <gurobi.Constr R09bad>)], [],
        <gurobi.Model Continuous instance basismodel: 28 constrs, 28 vars,
        No parameter changes>)
-   >>>
 
 Thus, it detected the same two constraints as the row-based explanation,
 and found no almost parallel columns.
@@ -193,6 +192,6 @@ is to first request
 a row-based explanation, but if it is too large to interpret then request
 the column based explanation.   In many cases, one of the two explanations
 may be much smaller and easier to interpret than the other.   If both are
-large, try the angle_explain routine.   If none of these approach yield
+large, try the ``angle_explain`` routine.   If none of these approach yield
 anything, look at the :doc:`advanced_usage_illcond` section for additional
 information on how to interpret the output.

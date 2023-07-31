@@ -11,7 +11,7 @@ the Ill Conditioning Explainer.   However, in a significant number
 of instances, large explanations that are difficult to interpret
 remain after executing the recommended workflow.   This section will
 discuss how to effectively interpret the explainer output, including
-for larger explanations.  In addition it will describe  additional
+for larger explanations.  In addition it will describe additional
 arguments to the explainer functions that can reduce the size of the
 explanations.
 
@@ -30,7 +30,7 @@ used to effectively identify the source of the ill conditioning.
 Regarding making full use of the linear combination vector values, recall
 from the :ref:`QSIntroductionLabel` section that the vector satisfies
 the condition :math:`||B^{T}y||_{\infty} \leq \epsilon` and
-:math:`||y|| >> \epsilon`.  The explainer output lists the rows or
+:math:`||y|| \gg \epsilon`.  The explainer output lists the rows or
 columns ordered by largest absolute multiplier value.   Small multiplier
 values can be ignored from consideration as long as the corresponding
 basis matrix row or column values are orders of magnitude larger than 1.0.
@@ -46,8 +46,8 @@ explanation can often identify the source of ill conditioning without
 having to look at most of its contents.
 
 * **Mixtures of large and small coefficients in matrix rows or columns.**
-  The definition of the condition number of a square matrix B is
-  :math:`||B||*||B^{-1}||`. Large ratios in B can easily result in large
+  The definition of the condition number of a square matrix :math:`B` is
+  :math:`||B||\cdot||B^{-1}||`. Large ratios in B can easily result in large
   values in either :math:`||B||` or :math:`||B^{-1}||`.   In many cases
   such large ratios are unnecessary and can be avoided.   For example,
   using more suitable units of measurements (e.g., counting in thousands
@@ -65,9 +65,9 @@ having to look at most of its contents.
   doubles that Gurobi uses to input the problem data.  Better yet, if the
   numerator and denominator of the fractions in a constraint are known
   when building the model, use the denominators to rescale the matrix row
-  to have all integer data.   For example, the constraint 1/3 x + 5/7 y <= 10
+  to have all integer data.  For example, the constraint ``1/3 x + 5/7 y <= 10``
   can be multiplied 21 (the product of the denominators) to yield the all
-  integer constraint 7x + 15y <= 210, which will yield a more precise
+  integer constraint ``7x + 15y <= 210``, which will yield a more precise
   representation of the coefficients.   Similarly, watch for matrix
   coefficients that are supposed to respresent the same value but have
   different levels of precision in different places.   This happens
@@ -83,7 +83,6 @@ having to look at most of its contents.
     0.7071067811865476
     >>> math.sin(math.radians(45))
     0.7071067811865475
-    >>>
 
   Such slight differences can turn identical coefficients into slightly
   different ones, which in turn can transform truly parallel rows into
@@ -129,11 +128,11 @@ having to look at most of its contents.
       :align: center
       :scale: 60 %
 
-Given that the condition number of a square matrix B is
-:math:`||B||*||B^{-1}||`, one can see that the submatrix of transfer
+Given that the condition number of a square matrix :math:`B` is
+:math:`||B||\cdot||B^{-1}||`, one can see that the submatrix of transfer
 constraints contributes :math:`2^{n-1}` to the overall basis condition
 number.  Hence it can be a source of ill conditioning for even modest
-values of n.
+values of :math:`n`.
 
 Here is some sample ill conditioning explainer output of a long
 sequence of transfer constraints from a run on a subproblem of
@@ -214,7 +213,7 @@ designed to reduce the size of the explanation.
   to filter out rows or columns of the basis matrix in the explanation.
   Recall from the :ref:`QSIntroductionLabel` section that the certificate
   of infeasibility vector y satisfies
-  :math:`||B^{T}y||_{\infty} \leq \epsilon` and :math:`||y|| >> \epsilon`.
+  :math:`||B^{T}y||_{\infty} \leq \epsilon` and :math:`||y|| \gg \epsilon`.
   Elements of y that are zero identify basis matrix rows or columns that
   can be removed from the explanation.   However, in numerous explanations,
   rows or columns with small multipliers contribute little insight to the
