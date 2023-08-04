@@ -38,6 +38,8 @@ In such cases, their contribution to the inner product :math:`B^{T}y`
 is negligible.  But if the row or column values are significantly larger,
 they still contribute significantly to the ill conditioning.
 
+  .. _three-common-label:
+
 Regarding common model structures in ill conditioned models, three in
 particular have occurred both in the more than 15 years of Gurobi customer
 tickets and in the recent development of the Ill Conditioning Explainer.
@@ -91,6 +93,7 @@ having to look at most of its contents.
   bit in the LP or MIP, and care should be taken to ensure they are
   computed in the same way in the model generation process.
 
+  
 * **Long Sequences of Transfer Constraints.**
   Transfer constraints multiply a variable by a number and assign
   the expression into a new variable.   A long sequence of such
@@ -98,6 +101,8 @@ having to look at most of its contents.
   and input in the next can implicitly create a large numeric value and
   a basis matrix with a high condition number.   For example, consider
 
+  .. _transfer-example1-label:
+  
   .. math::
 
      x_1 = 2x_2 \\
@@ -128,54 +133,60 @@ having to look at most of its contents.
       :align: center
       :scale: 60 %
 
-Given that the condition number of a square matrix :math:`B` is
-:math:`||B||\cdot||B^{-1}||`, one can see that the submatrix of transfer
-constraints contributes :math:`2^{n-1}` to the overall basis condition
-number.  Hence it can be a source of ill conditioning for even modest
-values of :math:`n`.
+  Given that the condition number of a square matrix :math:`B` is
+  :math:`||B||\cdot||B^{-1}||`, one can see that the submatrix of transfer
+  constraints contributes :math:`2^{n-1}` to the overall basis condition
+  number.  Hence it can be a source of ill conditioning for even modest
+  values of :math:`n`.
 
-Here is some sample ill conditioning explainer output of a long
-sequence of transfer constraints from a run on a subproblem of
-a publicly available model where the basis condition number was in
-the order of :math:`10^{31}`.  Note that each variable appears in
-consecutive constraints, and that the coefficients in each constraint
-are the same.  In this model the variables are free variables rather than
-being bounded below by 0.
+  .. _transfer-example2-label:
 
-| (mult=1.267949192397407)e11923: 0.221528652 x33590 = 0
-| (mult=-0.3397459621039425)e11803: 0.221528652 x32870 + 0.8267561847 x33590 = 0
-| (mult=0.09103465616606164)e11683: 0.221528652 x32150 + 0.8267561847 x32870 = 0
-| (mult=-0.02439266259987994)e11563: 0.221528652 x31430 + 0.8267561847 x32150 = 0
-| (mult=0.006535994244062434)e11443: 0.221528652 x30710 + 0.8267561847 x31430 = 0
-| (mult=-0.0017513143792112112)e11323: 0.221528652 x29990 + 0.8267561847 x30710 = 0
-| (mult=0.00046926327354376596)e11203: 0.221528652 x29270 + 0.8267561847 x29990 = 0
-| (mult=-0.00012573871516785733)e11083: 0.221528652 x28550 + 0.8267561847 x29270 = 0
-| (mult=3.3691587182326145e-05)e10963: 0.221528652 x27830 + 0.8267561847 x28550 = 0
-| (mult=-9.027633576094116e-06)e10843: 0.221528652 x27110 + 0.8267561847 x27830 = 0
-| (mult=2.4189471259749366e-06)e10723: 0.221528652 x26390 + 0.8267561847 x27110 = 0
-| (mult=-6.481549288572281e-07)e10603: 0.221528652 x25670 + 0.8267561847 x26390 = 0
-| (mult=1.736725897357507e-07)e10483: 0.221528652 x24950 + 0.8267561847 x25670 = 0
-| (mult=-4.6535430161276043e-08)e10363: 0.221528652 x24230 + 0.8267561847 x24950 = 0
-| (mult=1.246913092958399e-08)e10243: 0.221528652 x23510 + 0.8267561847 x24230 = 0
-| (mult=-3.341093562480668e-09)e10123: 0.221528652 x22790 + 0.8267561847 x23510 = 0
-| (mult=8.952433217911677e-10)e10003: 0.221528652 x22070 + 0.8267561847 x22790 = 0
-| (mult=-2.3987972507319496e-10)e9883: 0.221528652 x21350 + 0.8267561847 x22070 = 0
-| (mult=6.427557860589595e-11)e9763: 0.221528652 x20630 + 0.8267561847 x21350 = 0
-| (mult=-1.7222589378332707e-11)e9643: 0.221528652 x19910 + 0.8267561847 x20630 = 0
-| (mult=4.614778914917941e-12)e9523: 0.221528652 x19190 + 0.8267561847 x19910 = 0
-| (mult=-1.2365262833452548e-12)e9403: 0.221528652 x18470 + 0.8267561847 x19190 = 0
-| (mult=3.3132621900063825e-13)e9283: 0.221528652 x17750 + 0.8267561847 x18470 = 0
 
-Finally, note that the ratio of the multipliers for consecutive constraints
-remains constant from start to finish, and is in fact the ratio of the two
-coefficients :math:`0.8267561847/0.221528652`.
+  Here is some sample ill conditioning explainer output of a long
+  sequence of transfer constraints from a run on a subproblem of
+  a publicly available model where the basis condition number was on
+  the order of :math:`10^{31}`.  Note that each variable appears in
+  consecutive constraints, and that the coefficients in each constraint
+  are the same.  In this model the variables are free variables rather than
+  being bounded below by 0.
 
-Remedies for long sequences of transfer constraints are not as simple
-as for imprecise rounding or large ratios of coefficients in the basis
-matrix rows or columns.   The model developer should assess the meaning of
-these constraints in the context of the whole model, and why the activities
-at the start of the sequence are implicitly being rescaled to much larger
-values at the end of the sequence.
+  | (mult=1.267949192397407)e11923: 0.221528652 x33590 = 0
+  | (mult=-0.3397459621039425)e11803: 0.221528652 x32870 + 0.8267561847 x33590 = 0
+  | (mult=0.09103465616606164)e11683: 0.221528652 x32150 + 0.8267561847 x32870 = 0
+  | (mult=-0.02439266259987994)e11563: 0.221528652 x31430 + 0.8267561847 x32150 = 0
+  | (mult=0.006535994244062434)e11443: 0.221528652 x30710 + 0.8267561847 x31430 = 0
+  | (mult=-0.0017513143792112112)e11323: 0.221528652 x29990 + 0.8267561847 x30710 = 0
+  | (mult=0.00046926327354376596)e11203: 0.221528652 x29270 + 0.8267561847 x29990 = 0
+  | (mult=-0.00012573871516785733)e11083: 0.221528652 x28550 + 0.8267561847 x29270 = 0
+  | (mult=3.3691587182326145e-05)e10963: 0.221528652 x27830 + 0.8267561847 x28550 = 0
+  | (mult=-9.027633576094116e-06)e10843: 0.221528652 x27110 + 0.8267561847 x27830 = 0
+  | (mult=2.4189471259749366e-06)e10723: 0.221528652 x26390 + 0.8267561847 x27110 = 0
+  | (mult=-6.481549288572281e-07)e10603: 0.221528652 x25670 + 0.8267561847 x26390 = 0
+  | (mult=1.736725897357507e-07)e10483: 0.221528652 x24950 + 0.8267561847 x25670 = 0
+  | (mult=-4.6535430161276043e-08)e10363: 0.221528652 x24230 + 0.8267561847 x24950 = 0
+  | (mult=1.246913092958399e-08)e10243: 0.221528652 x23510 + 0.8267561847 x24230 = 0
+  | (mult=-3.341093562480668e-09)e10123: 0.221528652 x22790 + 0.8267561847 x23510 = 0
+  | (mult=8.952433217911677e-10)e10003: 0.221528652 x22070 + 0.8267561847 x22790 = 0
+  | (mult=-2.3987972507319496e-10)e9883: 0.221528652 x21350 + 0.8267561847 x22070 = 0
+  | (mult=6.427557860589595e-11)e9763: 0.221528652 x20630 + 0.8267561847 x21350 = 0
+  | (mult=-1.7222589378332707e-11)e9643: 0.221528652 x19910 + 0.8267561847 x20630 = 0
+  | (mult=4.614778914917941e-12)e9523: 0.221528652 x19190 + 0.8267561847 x19910 = 0
+  | (mult=-1.2365262833452548e-12)e9403: 0.221528652 x18470 + 0.8267561847 x19190 = 0
+  | (mult=3.3132621900063825e-13)e9283: 0.221528652 x17750 + 0.8267561847 x18470 = 0
+
+  Finally, note that the ratio of the multipliers for consecutive constraints
+  remains constant from start to finish, and is in fact the ratio of the two
+  coefficients :math:`0.8267561847/0.221528652`.  This example is similar to the
+  :ref:`first transfer constraint example <transfer-example1-label>`, except
+  that the variables are free instead of nonnegative, and the transfer
+  coefficient is :math:`0.8267561847/0.221528652` instead of 2.
+
+  Remedies for long sequences of transfer constraints are not as simple
+  as for imprecise rounding or large ratios of coefficients in the basis
+  matrix rows or columns.   The model developer should assess the meaning of
+  these constraints in the context of the whole model, and why the activities
+  at the start of the sequence are implicitly being rescaled to much larger
+  values at the end of the sequence.
 
 The :ref:`APIRefLabel` also includes two utility functions that can help with
 interpreting the explainer output.  The
@@ -191,6 +202,331 @@ For a more detailed discussion of common sources of ill conditioning
 in LPs and MILPs, see Section 4 of
 https://pubsonline.informs.org/doi/10.1287/educ.2014.0130.
 
+Examples
+--------
+Here are some examples from publicly available models that illustrate how
+to interpret explanations of nontrivial size.   Each example illustrates
+one of the aforementioned three common model structures in ill conditioned
+models.
+
+* **The LP relaxation of the MIPLIB model neos-1603965.**
+  This example illustrates mixtures of large aned small coefficients in matrix
+  rows or columns. The original MIP can be downloaded from
+  https://miplib.zib.de/instance_details_neos-1603965.html.   The LP
+  relaxation is available in the examples directory of this repository
+  or by calling the Model.relax() function on the original MIP.
+  The optimal basis condition number was on the order of :math:`10^{22}` The
+  row-based explanation file in the examples directory consists of 676 rows
+  and 677 columns.  As this is much smaller than the column-based explanation
+  for this model, only this explanation will be discussed.
+
+  While an explanation of this size can be difficult to interpret in its
+  entirety, one should first look for components of the explanation that
+  involve one of the aforementioned :ref:`three common model structures
+  <three-common-label>`.  Most
+  of the constraints in the explanation have nothing in common with any
+  of these characteristics, as they contain only +-1 coefficients
+  and do not promote any growth in the variable values.
+
+  | (mult=0.0014925373134321573)R24018: C7034 - C7035 >= 0
+  | (mult=0.0014925373134321573)R24019: C7035 - C7036 >= 0
+  | (mult=0.0014925373134321573)R24020: C7036 - C7037 >= 0
+  | ...
+  | (mult=0.0014925373134321573)R24685: C7701 - C7702 >= 0
+  | (mult=0.0014925373134321573)R24686: C7702 - C7703 >= 0
+  | (mult=0.0014925373134321573)R24687: C7703 - C7704 >= 0
+
+  Only 5 constraints differ from these, so it makes sense to focus on
+  those.
+
+  | (mult=1.4925373134321572e-13)R8030: C3030 - 1e+10 C7034 <= 0
+  | (mult=1.4925373134321572e-13)R12700: - C3700 + C3701 - 0.05 C7001
+  |  + 1e+10 C7704 <= 1e+10
+  | (mult=1.4925373134321572e-13)R28684: C3700 = 6630
+  | (mult=-1.4925373134321572e-13)R28685: - C1701 + C3701 = 7065
+  | (mult=-1.4179104477605494e-13)R28014: C0030 + C3030 = 7165
+
+  One sees large coefficient ratios in rows R8030 and R12700.  Based
+  just on these 5 constraints the explanation suggests that the 1e+10
+  coefficients are probably big M values that could be reduced without
+  compromising the meaning of the constraints, or replaced with the more
+  numerically stable indicator constraints that Gurobi offers.
+
+  Reducing or eliminating the big M values of 1e+10 is probably enough
+  to resolve the ill conditioning, so the remaning 671 constraints in the
+  explanation could be ignored.   However, let's try to understand the
+  explanation in its entirety to help prepare for other explanations where
+  ignoring significant parts is not an option.
+
+  Running the matrix_bitmap program on the full explanation sheds light
+  on how the remaining 671 constraints contribute to the high optimal basis
+  condition number.  The resulting bitmap reveals a nonzero structure of
+  bidiagonal elements except for a small block at the bottom right.
+
+  .. image:: _static/1603965_bitmap1.png
+      :scale: 60 %
+  .. image:: _static/1603965_bitmap2.png
+      :align: center	     
+      :scale: 60 %   
+	      
+  The bitmap indicates that consecutive bidiagonal constraints have a variable
+  in common.  This is indeed true, and a closer look reveals that adding
+  these constraints results in cancellation of the common variables.
+
+  .. image:: _static/1603965_agg.png
+      :align: center	     
+      :scale: 40 %
+
+  Indeed, after adding all these constraints, only variables C7034 and C7704
+  remain.   The complete explanation now reduces down to this combined
+  constraint along with the 5 remaining constraints that were excluded
+  from the summation process.
+
+  | Combined: C7034 - C7704 >= 0
+  | R8030: C3030 - 1e+10 C7034 <= 0
+  | R12700: - C3700 + C3701 - 0.05 C7001 + 1e+10 C7704 <= 1e+10
+  | R28684: C3700 = 6630
+  | R28685: - C1701 + C3701 = 7065
+  | R28014: C0030 + C3030 = 7165
+
+  From just these constraints one can construct a nonzero vector
+
+  :math:`y=(1, 10^{-10}, 10^{-10}, 10^{-10}, -10^{-10}, -10^{-10})`
+
+  that satisfies the condition of a certificate of ill conditioning, namely
+  :math:`||B^{T}y||_{\infty} \leq \epsilon` and :math:`||y|| \gg \epsilon`.	
+  One can extend the certificate to the other 671 constraints involving
+  bidiagonal constraints by setting each y value to 1 as well, i.e., for
+  the full explanation the vector with 676 components
+  
+  :math:`y=(1, 1, \cdots, 1, 10^{-10}, 10^{-10}, 10^{-10}, -10^{-10},
+  -10^{-10})`
+
+  satisfies the certificate of ill conditioning criterion in the
+  same way, namely
+  
+  :math:`y^{T}Bx = 10^{-10} C0030 + 10^{-10} C1701 - 5*10^{-12} C7001`
+
+  has only small coefficients.
+
+
+* **The LP relaxation of the MIPLIB model ns2122603.**
+  This example illustrates a combination of imprecise rounding and mixtures
+  of large and small coefficients.  The original model can be downloaded from
+  the unstable set at https://miplib2010.zib.de/miplib2010-unstable.php. The
+  LP relaxation is available in the examples directory of this repository
+  or by calling the Model.relax() function on the original MIP.  The optimal
+  basis condition number was on the order of :math:`10^{10}`.  The row-based
+  explanation consists of 241 constraints and 241 variables, while the
+  column based explanation consists of 187 constraints and 187 variables.
+  Both reside in the examples directory of the repository.  Given the similar
+  sizes, the discussion here will consider the row-based explanation.   
+
+  An interpretation of all 241 constraints in the row-based explanation,
+  while possible, is not really needed.   As with the previous example,
+  searching for the :ref:`three common model structures
+  <three-common-label>`. will suffice.   Using the
+  :ref:`converttofractions <APIconverttofractionsLabel>` function if needed,
+  one sees numerous constraints
+  with the fraction 1/24 represented with only 7 decimal places and some
+  rounding of the repeating decimal representation.
+
+  | (mult=0.011788497081319169)R2209: C6379 - C6380 - 0.0416667 C14243 >= 0
+  | (mult=0.011732361380931935)R2208: C6378 - C6379 - 0.0416667 C14242 >= 0
+  | (mult=0.011676492993403688)R2207: C6377 - C6378 - 0.0416667 C14241 >= 0
+
+  Coefficients like these could be represented exactly as, for example,
+
+  | R2209better: 24 C6379 - 24 C6380 - C14243 >= 0
+
+  Additionally, other constraints have coefficients with rounding errors in
+  the 6th and 8th decimal places.
+
+  | (mult=-5.640429225511564e-05)R5989: C6380 - 8.750007 C14244 <= 0.02083335
+  | (mult=-5.613570038723414e-05)R5988: C6379 - 8.750007 C14243 <= 0.02083335
+
+  These coefficients are clearly intended to be 35/4 and 1/48 respectively.
+  Using those exact coefficients and multiplying by the least common denominator
+  of 48 yields, for example,
+
+  | R5989better: 48 C6380 - 420 C14244 <= 1
+
+  Additional constraints in the explanation indicate unnecessarily large
+  big M coefficents.
+
+  | (mult=4.144857381208667e-12)R13507: 1e+08 C14195 - 1e+08 C12855
+   - 0.0416667 C11595 >= -1e+08
+
+  These big M coefficients can either be reduced without compromising
+  the meaning of the model or replaced with indicator constraints.
+
+
+* **An LP subproblem associated with the open MINLPLIB model
+  topopt-cantilever_60x40_50.**
+  This example was already discussed in the
+  :ref:`second transfer constraint example <transfer-example2-label>`
+  and will not be repeated here.   However, the model and row based explanation
+  are available in the examples directory of the repository.  The easiest way
+  to reproduce the basis with high condition number is to read in the
+  cantilever_sublp.bas file that is included in the examples directory.
+  Or, run the LP with presolve off.
+
+
+* **The irish-electricity LP model from the Mittelmann benchmark set.**
+  This example illustrates a more elaborate sequence of transfer constraints.
+  The model can be downloadeded from
+  https://plato.asu.edu/ftp/lptestset/irish-electricity.mps.bz2 and is also
+  available in the examples directory of this repository.  It is the LP
+  relaxation of the MIPLIB 2017 model of the same name that involves a unit
+  commitment model for electrical power generation.  The optimal
+  basis condition number was on the order of :math:`10^{38}`.  The row-based
+  explanation size consists of 57 constraints and 58 variables, while the
+  column-based explanation consists of 4698 constraints and 4431 variables.
+  Given it's much smaller size, the discussion here will focus on the
+  row-based explanation.
+
+  Examination of the bit map generated by the
+  :ref:`matrix_bitmap <APImatrix_bitmapLabel>` function indicates a nonzero
+  pattern consistent with a long sequence of transfer constraints.
+
+  .. image:: _static/irish_bitmap.png
+      :align: center	     
+      :scale: 60 %   
+  
+  However, this is more complicated than either of the previous examples
+  of sequences of transfer constraints, both of which had a simple bidiagonal
+  nonzero pattern.  The row based explanation appears to involve variables
+  and constraints associated with activities for a single power source and
+  multiple time periods.   However, the explanation sorts the constraints
+  in descending order by absolute multiplier value, and the connection
+  between consecutive time periods is not immediately clear.  
+
+  | (mult=1.473670931920553)MinDownInit_24: v_24_13 = 0
+  | (mult=-0.301174019398261)Link_u_v_24_14: v_24_13 + u_24_13 - v_24_14 >= 0
+  | (mult=-0.11503823888171555)Link_u_v_24_15: v_24_14 + u_24_14 - v_24_15 >= 0
+  | (mult=-0.04394069724688566)Link_u_v_24_16: v_24_15 + u_24_15 - v_24_16 >= 0
+  | (mult=-0.01678385285894142)Link_u_v_24_17: v_24_16 + u_24_16 - v_24_17 >= 0
+  | (mult=-0.006410861329938599)Link_u_v_24_18: v_24_17 + u_24_17 - v_24_18 >= 0
+  |
+  | ...
+  |
+  | (mult=0.001128095639494215)RampUpSlow_P_24_14: - 165 u_24_13 - 165 v_24_14 + 165 u_24_14 <= 0
+  | (mult=-0.0009353320626839298)Link_u_v_24_20: v_24_19 + u_24_19 - v_24_20 >= 0
+  | (mult=0.0004308941917262418)RampUpSlow_P_24_15: - 165 u_24_14 - 165 v_24_15 + 165 u_24_15 <= 0
+  | (mult=-0.00035726505717771395)Link_u_v_24_21: v_24_20 + u_24_20 - v_24_21 >= 0
+  | (mult=0.00016458693568451054)RampUpSlow_P_24_16: - 165 u_24_15 - 165 v_24_16 + 165 u_24_16 <= 0
+
+  Examination of the primal and dual variables associated with the ill
+  conditioned basis can shed light on how the transfer constraints interact.
+  The definition of the condition number of a square matrix :math:`B` is
+  :math:`||B||\cdot||B^{-1}||`.  Given that the problem statistics for this
+  LP (which can be obtained by calling Gurobi's Model.printStats() method)
+  indicate that the original constraint matrix has coefficients of very
+  modest orders of magnitude, :math:`||B^{-1}||` must contain some large
+  coefficients.   Given that the primal and dual variables of the LP
+  involve linear combinations of columns and rows of :math:`||B^{-1}||`
+  respectively, large primal or dual values may shed light on constraints
+  involved in the ill conditioning and how they are sequenced.  For the
+  basis in question, there are no large primal values.  However, numerous
+  large dual values exist, including for the power sources and time periods
+  in the explanation.  The following image reveals dual values
+  for the relevant power source that increase as the time period decreases.
+  Underlined constraints appear in the row-based explanation.
+
+  .. image:: _static/irish_dualvals.png
+      :align: center	     
+
+  This suggests that the Link and RampUpSlow constraints for consecutive
+  time periods are related, as the dual variables steadily increase as the
+  time period decreases.   Therefore, reordering the Link and RampUpSlow constraints
+  in descending order by time period may be a useful reordering of the
+  explanation that will facilitate interpretation.  In other words, reorder the
+  constraints in the explanation as follows and start with the constraints with
+  the largest time period.
+	      
+  | (mult=-0.11503823888171555)Link_u_v_24_15: v_24_14 + u_24_14 - v_24_15 >= 0
+  | (mult=0.0004308941917262418)RampUpSlow_P_24_15: - 165 u_24_14 - 165 v_24_15 + 165 u_24_15 <= 0
+  | (mult=-0.04394069724688566)Link_u_v_24_16: v_24_15 + u_24_15 - v_24_16 >= 0
+  | (mult=0.00016458693568451054)RampUpSlow_P_24_16: - 165 u_24_15 - 165 v_24_16 + 165 u_24_16 <= 0
+  | (mult=-0.01678385285894142)Link_u_v_24_17: v_24_16 + u_24_16 - v_24_17 >= 0
+  |
+  | ...
+  |
+  | (mult=2.738820795076575e-13)RampUpSlow_P_24_37: - 165 u_24_36 - 165 v_24_37 + 165 u_24_37 <= 0
+  | (mult=-2.824408944922718e-11)Link_u_v_24_38: v_24_37 + u_24_37 - v_24_38 >= 0
+  | (mult=1.0270577981537156e-13)RampUpSlow_P_24_38: - 165 u_24_37 - 165 v_24_38 + 165 u_24_38 <= 0
+  | (mult=-1.1297635779690872e-11)Link_u_v_24_39: v_24_38 + u_24_38 - v_24_39 >= 0
+
+  Consider the last two constraints Link_u_v_24_39 and RampUpSlow_P_24_38.  Both of
+  them intersect the variable u_24_38, so one can multiply Link_u_v_24_39 by -165 and
+  add it to RampUpSlow_P_24_38 to eliminate u_24_38 and v_24_38.   Then consider the
+  resulting combined constraint with Link_u_v_24_38, the next constraint in the sequence.
+
+  | combinedcon0:  - 165 u_24_37 - 330 v_24_38 + 165 v_24_39 <= 0
+  | Link_u_v_24_38: v_24_37 + u_24_37 - v_24_38 >= 0          
+
+  Both of them intersect the variable v24_38, so one can multiply Link_u_v_24_38 by
+  -330 and add it to the combined constraint to obtain another combined constraint.
+  Then consider this new constraint with RampUpSlow_P_24_37.
+
+  | combinedcon1:  - 495 u_24_37 + -330 v24_37 + 165 v_24_39 <= 0
+  | RampUpSlow_P_24_37: - 165 u_24_36 - 165 v_24_37 + 165 u_24_37 <= 0
+
+  These two constraints both intersect u_24_37, so one can multiply RampUpSlow_P_24_37
+  by 3 to obtain another combined constraint.
+
+  | combinedcon2:  -825 v24_37 -495 u_24_36  + 165 v_24_39 <= 0
+
+  Note that the growth in the combined constraint is now starting to accelerate.
+  One can continue this process of multiplying the next explanation constraint by
+  a value that results in a combined constraint with only 3 nonzeros.  Here is
+  a summary of some additional operations of this type.   Note that accelerating
+  growth of the largest coefficient in the combined constraint.
+
+  .. image:: _static/irish_pivots.png
+      :align: center	     
+
+  In each of the combined constraints, the largest coefficient is a multiple of -165
+  One can assess the growth rate by looking at the sequence of integer multiples of
+  -165 in the series of combined constraints.
+
+  .. image:: _static/irish_pivots.png
+      :align: center	     
+
+  This is the Fibonacci sequence, for which Binet's formula gives value of the
+  n-th Fibonacci number.
+
+  .. image:: _static/Binet.png
+      :align: center	     
+      :scale: 60 %
+	      
+  This pattern continues throughout the explanation and illustrates the the growth
+  rate of the largest coefficient in the combined constraint occurs at an exponential
+  rate.   The pivoting operations described here mimic those used to obtain the
+  inverse of the basis matrix, thus explaining the source of the ill conditioning.
+
+  The question remains of how to remedy the cause of ill conditioning.  In the
+  previous example models, the ill conditioning could be reduced or avoided by
+  addressing unnecessarily imprecise rounding of important coeffients, or reducing
+  unnecessarily large coefficient ratios in the constraint matrix rows or columns.
+  No such simple remedy is available.   The model is publicly available, and the LP
+  is the relaxation of the MIPLIB 2017 model of the same name, which is a Unit
+  Commitment model.  Examination of the solution and basis file associated with this
+  optimal but ill conditioned basis that the u and v variables in the explanation
+  are all basic, but at their lower bound of 0.  Therefore, the ill conditioning
+  was relatively harmless for the model in its current state; it did not adversely
+  affect primal or dual solution quality.   A paper at
+  https://inria.hal.science/hal-01665611/file/UC_CMBA.pdf that describes the model
+  indicates that these constraints involve available power and suggests that if
+  all available power was used over an extremely large number of time periods,
+  huge power production costs would result.  However, apparently such a solution
+  will not be used in practice.  However, a small change to the model
+  that would enable the u and v variables to take on positive values could yield
+  drastically different results.  
+	      
+	      
+	     
+  
 Additional Function Arguments
 *****************************
 
