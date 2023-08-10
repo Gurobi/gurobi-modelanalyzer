@@ -5,10 +5,7 @@ name: Test
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      - master
 
 jobs:
   unit-tests:
