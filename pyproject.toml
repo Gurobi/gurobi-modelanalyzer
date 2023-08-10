@@ -3,29 +3,33 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "model-analyzer"
-description = 'Analyzer of models'
+name = "gurobi-modelanalyzer"
+description = "Analyzer of models"
 readme = "README.md"
-requires-python = ">=3.7"
-keywords = []
+requires-python = ">=3.9"
+license = "Apache-2.0"
+keywords = ["optimization"]
 authors = [
   { name = "Ed Klotz", email = "klotz@gurobi.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
-  "gurobipy",
-  "numpy",
+  "gurobipy>=10.0",
+  "numpy>=1.21",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://gurobi-optimization-gurobi-modelanalyzer.readthedocs-hosted.com/en/latest"
+Issues = "https://github.com/Gurobi/gurobi-modelanalyzer/issues"
+Source = "https://github.com/Gurobi/gurobi-modelanalyzer"
 
 [tool.hatch.version]
 path = "model_analyzer/__init__.py"
