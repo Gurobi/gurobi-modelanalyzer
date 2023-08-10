@@ -24,8 +24,8 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        python: ["3.9"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.9", "3.10", "3.11"]
 
     steps:
       - name: Checkout unit tests
