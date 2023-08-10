@@ -48,7 +48,8 @@ jobs:
         run: ls -R
       - name: Install wheel
         run: |
-          python -m pip install dist/*.whl
+          # Workaround for globbing the wheel on windows
+          python -c "import glob, subprocess, sys; subprocess.check_call((sys.executable, '-m', 'pip', 'install', glob.glob('dist/*.whl')[0]))"
       - name: Run unittests
         run: |
           python -m unittest discover -v
