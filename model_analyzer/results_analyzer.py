@@ -21,8 +21,8 @@ from model_analyzer import common
 OFF = 0
 MODERATE = 1
 VERBOSE = 2
-_debug = OFF  # Change to MODERATE or VERBOSE as needed
-_debugger = OFF
+_debug = VERBOSE  # Change to MODERATE or VERBOSE as needed
+_debugger = MODERATE
 
 SOLVELP = 0  # relobjtype choices
 SOLVEQP = 1
@@ -106,7 +106,6 @@ def kappa_explain(
     if _debug != OFF:
         if _debugger != OFF:
             import pdb
-
             pdb.set_trace()
 
     if expltype == "COLS":
@@ -160,7 +159,7 @@ def kappa_explain(
     condthresh = math.pow(2, texp)
 
     splitfreevars = method == LASSO
-    explmodel, splitvardict, RSinginfo, CSinginfo = extract_basis(
+    explmodel, splitvardict, RSinginfo, CSinginfo, Singflag = extract_basis(
         model, modvars, modcons, expltype, method, condthresh
     )
     if explmodel == None:  # Didn't find a basis for original model
@@ -169,6 +168,16 @@ def kappa_explain(
     kappa_stats(model, data, KappaExact)
     if _debug != OFF:
         explmodel.write("explmodel.lp")
+    if Singflag:
+        #
+        # Detected an explanation based on row or column singletons
+        # with a huge ratio among two entries.  Use a separate, simpler
+        # routine to create the explanation.
+        #
+        resmodel, maxmult, minmult = build_singleton_resmodel(explmodel, \
+                                                              expltype)
+        illcond_report(resmodel, model.ModelName, expltype, maxmult, minmult)
+        return(resmodel)
     #
     #   Minimize the violations of B'y = 0 constraints.  Do not relax
     #   the e'y == 1 constraint, and the y variables are free, so they
@@ -265,6 +274,11 @@ def kappa_explain(
     #
     #   The y variables were created before calling feasRelax.  Extract
     #   them, as they are the certificate of ill conditioning.
+    #
+    #   TODO:  This subsequent section to build the resmodel that contains
+    #   the explanation has grown large enough that it probably belongs in
+    #   either one separate routine or two routines (one for building by
+    #   rows and one for building by column.
     #
     yvaldict = {}
     ynamedict = {}
@@ -496,24 +510,9 @@ def kappa_explain(
         #
         # Done with column specific part of explanation.
         #
-    resmodel.setObjective(0)
-    if model.ModelName == "":
-        modelname = "model"
-    else:
-        modelname = model.ModelName
-    if expltype == BYROWS:
-        filename = modelname + "_kappaexplain.lp"
-    else:
-        filename = modelname + "_kappaexplain.mps"
-    resmodel.write(filename)
-    #
-    #   Final info
-    #
-    print("--------------------------------------------------------")
-    print("Ill conditioning explanation written to file ", filename)
-    print("Maximum absolute multiplier value: ", str(max(yvaldict.values())))
-    print("Minimum absolute multiplier value: ", str(min(yvaldict.values())))
-    print("--------------------------------------------------------")
+
+    illcond_report(resmodel, model.ModelName, expltype, \
+                   max(yvaldict.values()), min(yvaldict.values()))
     if method == ANGLES:
         return ([], [], None)  # Compatibility with method=ANGLES
     else:
@@ -532,6 +531,7 @@ def kappa_explain(
 def extract_basis(
     model, modvars, modcons, modeltype=BYROWS, method=DEFAULT, condthresh=1e10
 ):
+    Singflag = False
     #
     #   Does the model have a factorized basis?  If not, need to solve it
     #   first.
@@ -625,7 +625,8 @@ def extract_basis(
             explmodel.dispose()
             explmodel = gp.Model("rowsingleton_basismodel")
             build_explmodel(
-                model, explmodel, [minvar, maxvar], [mincon, maxcon], None, None, BYROWS
+                model, explmodel, [minvar, maxvar], [mincon, maxcon], \
+                None, None, BYROWS
             )
             #
             #
@@ -649,12 +650,13 @@ def extract_basis(
                 lhs = explmodel.getRow(con)
                 coeff = lhs.getCoeff(0)
                 var = lhs.getVar(0)
-                if coeff < maxcoeff:
+                if abs(coeff) < maxcoeff:
                     var.LB = maxmult
                     var.UB = maxmult
                 else:
                     var.LB = minmult
                     var.UB = minmult
+            Singflag = True
     elif modeltype == BYCOLS and len(CSinginfo) > 1:
         maxrat = 0
         maxcoeff = 0
@@ -681,9 +683,10 @@ def extract_basis(
             # for the explanation
             #
             explmodel.dispose()
-            explmodel = gp.Model("rowsingleton_basismodel")
+            explmodel = gp.Model("colsingleton_basismodel")
             build_explmodel(
-                model, explmodel, [minvar, maxvar], [mincon, maxcon], None, None, BYROWS
+                model, explmodel, [minvar, maxvar], [mincon, maxcon], \
+                None, None, BYCOLS
             )
             #
             # The 2x2 matrix is of the form  a1  0 | A2(1,.)
@@ -704,13 +707,14 @@ def extract_basis(
             for var in explmodel.getVars():
                 thiscol = explmodel.getCol(var)
                 coeff = thiscol.getCoeff(0)
-                if coeff < maxcoeff:
+                if abs(coeff) < maxcoeff:
                     var.LB = maxmult
                     var.UB = maxmult
                 else:
                     var.LB = minmult
                     var.UB = minmult
 
+            Singflag = True
     #
     #   B'y = 0 or By = 0 constraints are done.   All variables are now created, so
     #   add the e'y = 1 constraint and we are done.  This is the same,
@@ -727,11 +731,12 @@ def extract_basis(
             minusvars.append(minusvar)
         #            explmodel.addSOS(GRB.SOS_TYPE1, [v, minusvar])
 
-        explmodel.addConstr(gp.quicksum(plusvars) - gp.quicksum(minusvars) == 1)
+        explmodel.addConstr(gp.quicksum(plusvars) - gp.quicksum(minusvars) \
+                            == 1, name="GRBNormalize")
         explmodel.setObjective(gp.quicksum(plusvars) + gp.quicksum(minusvars))
     else:
         explvars = explmodel.getVars()
-        explmodel.addConstr(gp.quicksum(explvars) == 1)
+        explmodel.addConstr(gp.quicksum(explvars) == 1, name="GRBNormalize")
         if method == RLS:
             numvars = len(explvars)
             sumsquares = gp.QuadExpr()
@@ -739,7 +744,7 @@ def extract_basis(
             explmodel.setObjective(sumsquares)
 
     explmodel.update()
-    return explmodel, splitvardict, RSinginfo, CSinginfo
+    return explmodel, splitvardict, RSinginfo, CSinginfo, Singflag
 
 
 #
@@ -973,7 +978,99 @@ def build_explmodel(
     if _debug != OFF:
         endtime = time.time()
         print("Time build_explmodel = ", endtime - starttime)
-
+#
+#   Handle the special case where the explanation consists of just
+#   two row singletons or column singletons with a large ratio.
+#   No need to map back to the original model or run feasrelax
+#   on the explainer model, which already has an optimal solution
+#   provided since the variables are fixed.  
+#
+def build_singleton_resmodel(explmodel, expltype):
+    vars     = explmodel.getVars()
+    cons     = explmodel.getConstrs()
+    #
+    # No need to optimize the explmodel since all its variables are fixed.
+    #
+    if vars[0].LB > vars[1].LB:    
+        maxmult = vars[0].LB
+        minmult = vars[1].LB
+        maxvar  = vars[0]
+        minvar  = vars[1]
+    else:
+        maxmult = vars[1].LB
+        minmult = vars[0].LB
+        maxvar  = vars[0]
+        minvar  = vars[1]
+        
+    if expltype == BYROWS:
+        #
+        # Transpose the explanation model into the results model.
+        # For example, this explanation model  (from neos-799716.mps)
+        #
+        # cons(6,1): - 0.000576 c2931 = 0
+        # beginFamily(0,3): - 1e+08 c14960 = 0
+        # R2: c2931 + c14960 = 1
+        # Bounds
+        # c2931 = 1
+        # c14960 = 5.76e-12
+        #
+        # would result in
+        # (mult=0.9999999999942399)c2931: - 0.000576 cons(6,1) = 0
+        # (mult=5.759999999966822e-12)c14960: - 1e+08 beginFamily(0,3) = 0
+        #
+        resmodel = gp.Model()
+        maxconname = "(mult=" + str(maxmult) + ")" + maxvar.VarName
+        col        = explmodel.getCol(maxvar)
+        con0       = col.getConstr(0)
+        con1       = col.getConstr(1)
+        if con1.ConstrName == "GRBNormalize":
+            maxvarname = con0.ConstrName
+            maxcoeff   = col.getCoeff(0)
+        else:
+            maxvarname = con1.ConstrName
+            maxcoeff   = col.getCoeff(1)
+        thisvar = resmodel.addVar(name = maxvarname)
+        resmodel.addConstr(maxcoeff*thisvar == 0, name = maxconname)
+        minconname = "(mult=" + str(minmult) + ")" + minvar.VarName
+        col        = explmodel.getCol(minvar)
+        con0       = col.getConstr(0)
+        con1       = col.getConstr(1)
+        if con1.ConstrName == "GRBNormalize":
+            minvarname = con0.ConstrName
+            mincoeff   = col.getCoeff(0)
+        else:
+            minvarname = con1.ConstrName
+            mincoeff   = col.getCoeff(1)
+        thisvar = resmodel.addVar(name = minvarname)
+        resmodel.addConstr(mincoeff*thisvar == 0, name = minconname)
+    else:
+        #
+        # Column based explanation is easier, as no tranposition of the
+        # model is needed.  Just modeify a copy of the explmodel.
+        # For example, this explanation model will simply have its
+        # names modified.
+        #
+        # c1311: 1e+11 x3259 = 0
+        # c1312: x3260 = 0
+        # GRBNormalize: x3260 + x3259 = 1
+        #Bounds
+        # x3260 = 1
+        # x3259 = 1e-11
+        #
+        # would result in
+        # At this point we no longer need the explmodel, so just modify
+        # it in place.
+        #
+        maxvar.VarName = "(mult=" + str(maxmult) + ")" + maxvar.VarName
+        minvar.VarName = "(mult=" + str(minmult) + ")" + maxvar.VarName
+        cons = explmodel.getConstrs()
+        for c in cons:
+            if c.ConstrName == "GRBNormalize":
+                explmodel.remove(c)
+        explmodel.update()
+        resmodel = explmodel
+    resmodel.ModelName = explmodel.ModelName
+    return resmodel, maxmult, minmult
 
 def kappa_stats(model, data, KappaExact):
     kappa = model.Kappa
@@ -992,7 +1089,27 @@ def kappa_stats(model, data, KappaExact):
     if data != None:
         data["Kappa"] = kappa
         data["KappaExact"] = kappaexact
-
+#
+#   Write out the final explanation, print summary info.
+#
+def illcond_report(resmodel, modelname, expltype, maxabsmult, minabsmult):
+    resmodel.setObjective(0)
+    if modelname == "":
+        modelname = "model"
+    if expltype == BYROWS:
+        filename = modelname + "_kappaexplain.lp"
+    else:
+        filename = modelname + "_kappaexplain.mps"
+    resmodel.write(filename)
+    #
+    #   Final info
+    #
+    print("--------------------------------------------------------")
+    print("Ill conditioning explanation written to file ", filename)
+    print("Maximum absolute multiplier value: ", maxabsmult)
+    print("Minimum absolute multiplier value: ", minabsmult)
+    print("--------------------------------------------------------")
+    
 
 #
 #   Split free variables into difference of two nonnegative variables.
@@ -1149,7 +1266,7 @@ def angle_explain(model, howmany=1, partol=1e-6):
             pdb.set_trace()
     modcons = model.getConstrs()
     modvars = model.getVars()
-    explmodel, splitvardict, junk1, junk2 = extract_basis(
+    explmodel, splitvardict, junk1, junk2, junk3 = extract_basis(
         model, modvars, modcons, None, False
     )
     if explmodel == None:  # No basis for original model found.
@@ -1486,6 +1603,7 @@ def refine_output(model, absmultdict, expltype, submatrix):
     #    import pdb; pdb.set_trace()
     quit = False
     if expltype == BYROWS:
+        removeemptycolumns(model)
         condict = {}
         #
         # Skip the combined constraint (the last one); it has no multiplier
@@ -1516,6 +1634,7 @@ def refine_output(model, absmultdict, expltype, submatrix):
         model.remove(cons[0:concnt])
         model.update()
     elif expltype == BYCOLS:
+        removeemptyrows(model)
         vardict = {}
         #
         # Skip the combined column (the last one); it has no multiplier
@@ -1809,6 +1928,39 @@ def refine_col_output(model, abscolmultdict):
     # value first.
     #
 
+
+
+#
+#   Delete linear constraints that have no nonzero coefficients
+#   Changes the model, so pass in a copy of you want to
+#   preserve the original model.
+#
+def removeemptyrows(model):
+    cons    = model.getConstrs()
+    delcons = []
+    for c in cons:
+        row = model.getRow(c)
+        if row.size() == 0:
+            delcons.append(c)
+    model.remove(delcons)
+    model.update()    
+
+#
+#   Delete variables that have no nonzero coefficients in the
+#   associated column of the linear constraint matrix.
+#   Changes the model, so pass in a copy of you want to
+#   preserve the original model.
+#
+def removeemptycolumns(model):
+    vars    = model.getVars()
+    delvars = []
+    for v in vars:
+        col = model.getCol(v)
+        if col.size() == 0:
+            delvars.append(v)
+    model.remove(delvars)
+    model.update()    
+    
 
 #
 #   L1 norm of a specific constraint in a model.

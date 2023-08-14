@@ -90,3 +90,4 @@ class TestExplainer(unittest.TestCase):
     def test_angles(self):
         list1, list2, model = kappa_explain(self.model, method="ANGLES")
         assert list1 != None and list2 != None and model != None
+        print("Angle test completed.")
