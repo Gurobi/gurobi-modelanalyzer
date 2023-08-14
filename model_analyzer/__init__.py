@@ -1,4 +1,8 @@
-__version__ = "0.1.0"
+__version__ = "0.1.0b1"
 
-from .results_analyzer import kappa_explain, angle_explain, matrix_bitmap, \
-                              converttofractions
+from .results_analyzer import (
+    kappa_explain,
+    angle_explain,
+    matrix_bitmap,
+    converttofractions,
+)

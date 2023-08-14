@@ -45,3 +45,17 @@ needed on a comment, it should remain open until a solution can be figured out.
 
 ## Merging changes
 The core maintainer that reviewed the pull request will merge it after all comments have been addressed and when all tests are passing.
+
+## Release process
+
+We use github releases and actions to publish to PyPI. Currently, all releases are built from the main branch. To release version `X.Y.Z`:
+
+1. Ensure `model_analyzer/__init__.py` on branch `main` contains `__version__ = "X.Y.Z"`
+2. Go to Releases -> [Draft a new release](https://github.com/Gurobi/gurobi-modelanalyzer/releases/new) in GitHub
+    - In "Choose a tag", create a new tag "vX.Y.Z"
+    - Target should be 'main'
+    - Set the release title as "Release vX.Y.Z"
+    - Click "Generate release notes" to populate this automatically from merged pull request information, add any other notes if needed
+    - Check "Set as the latest release"
+    - Click "Publish release"
+3. The [release job](https://github.com/Gurobi/gurobi-modelanalyzer/actions/workflows/release.yml) runs automatically
