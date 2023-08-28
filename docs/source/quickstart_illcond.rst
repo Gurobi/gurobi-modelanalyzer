@@ -50,14 +50,14 @@ argument to ``"COLS"``.   Here is the simplest sequence of commands to do this.
 
    m=gp.read("myillconditionedmodel.mps")
    m.optimize()
-   kappa_explain(m)             # row-based; could also specify expltype="ROWS"
+   ma.kappa_explain(m)           # row-based; could also specify expltype="ROWS"
 
 
 If a column-based explanation is preferred, call
 
 .. code-block:: python
 
-   kappa_explain(m, expltype="COLS")
+   ma.kappa_explain(m, expltype="COLS")
 
 One can request both types of explanations by consecutive ``kappa_explain`` calls
 in a single code fragment.
