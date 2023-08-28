@@ -351,6 +351,13 @@ def kappa_explain(
                 thiscon.ConstrName = explname
                 thislhs = resmodel.getRow(thiscon)
                 thisrhs = thiscon.rhs
+                #
+                # Calculate rhs for the basis matrix rows.  Given by
+                # Bx = b - A_Nx_N for the rows in the explanation.
+                # Note that Gurobi allows variables to be nonbasic at
+                # infinite bounds with dual infeasibilities in dual simplex
+                # method, so need to handle that possible situation.
+                #
                 for j in range(thislhs.size()):
                     var = thislhs.getVar(j)
                     coeff = thislhs.getCoeff(j)
@@ -358,9 +365,11 @@ def kappa_explain(
                     if varstat == GRB.BASIC:
                         continue
                     if varstat == GRB.NONBASIC_LOWER:
-                        thisrhs -= var.LB * coeff
+                        if var.LB > -GRB.INFINITY:
+                            thisrhs -= var.LB * coeff
                     elif varstat == GRB.NONBASIC_UPPER:
-                        thisrhs -= var.UB * coeff
+                        if var.UB < GRB.INFINITY:
+                            thisrhs -= var.UB * coeff
                     elif varstat == GRB.SUPERBASIC:
                         thisrhs -= varsolinfodict[var.VarName][1] * coeff
 
