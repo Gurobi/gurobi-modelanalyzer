@@ -6,7 +6,7 @@ import os
 import math
 import time
 
-from model_analyzer import common
+from gurobi_modelanalyzer import common
 
 
 #
