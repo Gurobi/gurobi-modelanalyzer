@@ -60,23 +60,23 @@ Then use the explainer functions.   Example usage
 
 ```
 import gurobipy as gp
-import model_analyzer.results_analyzer as ra
+import gurobi_modelanalyzer.results_analyzer as gma
 model=gp.read("myillconditionedmodel.mps")
 model.optimize()
-ra.kappa_explain(model)
+gma.kappa_explain(model)
 
 # row-based explanation (default)
-ra.kappa_explain(model, expltype="ROWS")
+gma.kappa_explain(model, expltype="ROWS")
 
 # column-based explanation
-ra.kappa_explain(model, expltype="COLS")
+gma.kappa_explain(model, expltype="COLS")
 
 # angle-based explanation (only looks for pairs of rows or columns
 # that cause ill-conditioning.
-ra.angle_explain(model)
+gma.angle_explain(model)
 ```
 
-Use `help(ra.kappa_explain)` or `help(ra.angle_explain)` for information
+Use `help(gma.kappa_explain)` or `help(gma.angle_explain)` for information
 on more advanced usage.
 
 
