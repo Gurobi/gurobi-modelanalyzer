@@ -6,11 +6,11 @@ import os
 import sys
 from timeit import default_timer
 
-import model_analyzer.common as common
-import model_analyzer.constraint_analyzer as constraint_analyzer
-import model_analyzer.file_analyzer as file_analyzer
-import model_analyzer.objective_function_analyzer as objective_function_analyzer
-import model_analyzer.variable_analyzer as variable_analyzer
+import gurobi_modelanalyzer.common as common
+import gurobi_modelanalyzer.constraint_analyzer as constraint_analyzer
+import gurobi_modelanalyzer.file_analyzer as file_analyzer
+import gurobi_modelanalyzer.objective_function_analyzer as objective_function_analyzer
+import gurobi_modelanalyzer.variable_analyzer as variable_analyzer
 
 
 def run(model_file: str, analyzers=[]):

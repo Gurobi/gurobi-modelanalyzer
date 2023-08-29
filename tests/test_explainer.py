@@ -3,7 +3,7 @@ import pathlib
 import os
 
 import gurobipy as gp
-from model_analyzer import kappa_explain
+from gurobi_modelanalyzer import kappa_explain
 
 here = pathlib.Path(__file__).parent
 cwd = pathlib.Path(os.getcwd())

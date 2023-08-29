@@ -1,7 +1,7 @@
 from unittest import TestCase
 import pathlib
 
-import model_analyzer.analyzer as analyzer
+import gurobi_modelanalyzer.analyzer as analyzer
 
 
 class TestAnalyzer(TestCase):

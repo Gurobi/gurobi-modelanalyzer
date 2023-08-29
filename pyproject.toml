@@ -33,4 +33,4 @@ Issues = "https://github.com/Gurobi/gurobi-modelanalyzer/issues"
 Source = "https://github.com/Gurobi/gurobi-modelanalyzer"
 
 [tool.hatch.version]
-path = "model_analyzer/__init__.py"
+path = "src/gurobi_modelanalyzer/__init__.py"
