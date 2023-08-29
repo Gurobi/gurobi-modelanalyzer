@@ -50,7 +50,7 @@ The core maintainer that reviewed the pull request will merge it after all comme
 
 We use github releases and actions to publish to PyPI. Currently, all releases are built from the main branch. To release version `X.Y.Z`:
 
-1. Ensure `model_analyzer/__init__.py` on branch `main` contains `__version__ = "X.Y.Z"`
+1. Ensure `src/gurobi_modelanalyzer/__init__.py` on branch `main` contains `__version__ = "X.Y.Z"`
 2. Go to Releases -> [Draft a new release](https://github.com/Gurobi/gurobi-modelanalyzer/releases/new) in GitHub
     - In "Choose a tag", create a new tag "vX.Y.Z"
     - Target should be 'main'

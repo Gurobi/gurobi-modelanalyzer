@@ -60,7 +60,7 @@ Then use the explainer functions.   Example usage
 
 ```
 import gurobipy as gp
-import gurobi_modelanalyzer.results_analyzer as gma
+import gurobi_modelanalyzer as gma
 model=gp.read("myillconditionedmodel.mps")
 model.optimize()
 gma.kappa_explain(model)

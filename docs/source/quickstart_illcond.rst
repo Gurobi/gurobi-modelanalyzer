@@ -46,7 +46,7 @@ argument to ``"COLS"``.   Here is the simplest sequence of commands to do this.
 .. code-block:: python
 
    import gurobipy as gp
-   import model_analyzer as ma
+   import gurobi_modelanalyzer as ma
 
    m=gp.read("myillconditionedmodel.mps")
    m.optimize()

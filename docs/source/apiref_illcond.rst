@@ -6,7 +6,7 @@ API Reference
 
 .. _APIkappa_explainLabel:
 
-.. py:function:: model_analyzer.kappa_explain(model, data=None, KappaExact=-1, prmfile=None, relobjtype="LP", expltype="ROWS", method="DEFAULT", smalltol=1e-13, submatrix=False)
+.. py:function:: gurobi_modelanalyzer.kappa_explain(model, data=None, KappaExact=-1, prmfile=None, relobjtype="LP", expltype="ROWS", method="DEFAULT", smalltol=1e-13, submatrix=False)
 
    Computes an explanation of ill conditioning for the basis matrix associated
    with the LP model in the first argument.   Writes the explanation to an LP
@@ -43,7 +43,7 @@ API Reference
 
 .. _APIangle_explainLabel:
 
-.. py:function:: model_analyzer.angle_explain(model, howmany=1, partol=1e-6)
+.. py:function:: gurobi_modelanalyzer.angle_explain(model, howmany=1, partol=1e-6)
 
    Searches for ill conditioning explanations consisting of pairs of near
    parallel rows and near parallel columns of the basis matrix.  Basis statuses
@@ -60,7 +60,7 @@ API Reference
 
 .. _APImatrix_bitmapLabel:
 
-.. py:function:: model_analyzer.matrix_bitmap(model)
+.. py:function:: gurobi_modelanalyzer.matrix_bitmap(model)
 
    Utility routine to facilitate examination of explainer output by
    printing a bit map of the nonzero structure.   This can be used to
@@ -77,7 +77,7 @@ API Reference
 
 .. _APIconverttofractionsLabel:
 
-.. py:function:: model_analyzer.converttofractions(vals)
+.. py:function:: gurobi_modelanalyzer.converttofractions(vals)
 
    Utility routine to convert decimals into the nearest rational
    approximation.  This is particularly useful for converting
