@@ -46,18 +46,18 @@ argument to ``"COLS"``.   Here is the simplest sequence of commands to do this.
 .. code-block:: python
 
    import gurobipy as gp
-   import gurobi_modelanalyzer as ma
+   import gurobi_modelanalyzer as gma
 
    m=gp.read("myillconditionedmodel.mps")
    m.optimize()
-   ma.kappa_explain(m)           # row-based; could also specify expltype="ROWS"
+   gma.kappa_explain(m)        # row-based; could also specify expltype="ROWS"
 
 
 If a column-based explanation is preferred, call
 
 .. code-block:: python
 
-   ma.kappa_explain(m, expltype="COLS")
+   gma.kappa_explain(m, expltype="COLS")
 
 One can request both types of explanations by consecutive ``kappa_explain`` calls
 in a single code fragment.
@@ -171,7 +171,7 @@ may be empty if no almost parallel rows or columns were detected.
 Running the ``angle_explain`` method on the same model that generated the
 previous LP and MPS files::
 
-   >>> ma.angle_explain(m)
+   >>> gma.angle_explain(m)
        ([(<gurobi.Constr R09>, <gurobi.Constr R09bad>)], [],
        <gurobi.Model Continuous instance basismodel: 28 constrs, 28 vars,
        No parameter changes>)
