@@ -53,7 +53,7 @@ This will also install the numpy and gurobipy dependencies.  One of the
 advanced functions makes use of matplotlib; if you haven't already installed
 that and plan to use this function (matrix_bitmap), you can either install
 the matplotlib package directly, or install it with the gurobi-modelanalyzer
-package via "pip install gurobi-modelanalyzer matplotlib"
+package via "pip install gurobi-modelanalyzer matplotlib".
 
 Please note that gurobipy is commercial software and requires a
 license. When installed via pip or conda, gurobipy ships with a free
