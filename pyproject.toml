@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gurobi-modelanalyzer"
-description = "Analyzer of models"
+description = "Model analysis tools; v1.0 is an ill conditioning explainer."
 readme = "README.md"
 requires-python = ">=3.8"
 license = "Apache-2.0"

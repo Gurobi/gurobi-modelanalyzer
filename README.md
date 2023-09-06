@@ -1,6 +1,10 @@
+<!---
+
 **⚠ Warning**
 
 ```This code is in a pre-release state. It may not be fully functional and breaking changes can occur without notice.```
+
+--->
 
 # Gurobi Model Analyzer
 
