@@ -11,10 +11,10 @@ copyright = "2023, Gurobi Optimization, LLC. All Rights Reserved."
 html_logo = "_static/gurobi-logo-title.png"
 
 # -- Warning banner while in beta -------------------------------------------
-rst_prolog = """.. warning::
-    This code is in a pre-release state. It may not be fully functional and breaking changes
-    can occur without notice.
-"""
+#rst_prolog = """.. warning::
+#    This code is in a pre-release state. It may not be fully functional and breaking changes
+#    can occur without notice.
+#"""
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

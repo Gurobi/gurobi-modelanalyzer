@@ -20,7 +20,8 @@ We encourage to install the package via pip (or add it to your
 .. note::
 
   The package has been tested with and is supported for Python 3.7, 3.9
-  and 3.10.
+  and 3.10.  It is likely to work with other recent Python versions as
+  well.
 
 .. note::
 
