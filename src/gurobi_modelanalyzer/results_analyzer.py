@@ -575,7 +575,7 @@ def extract_basis(
             tmp2 = modvars[0].VBasis
             tmp1 = modvars[0].X
         except AttributeError as e:  # no basis; no explanation to return
-            return None, None, None, None
+            return None, None, None, None, None
 
     m = model.numConstrs
     n = model.numVars
