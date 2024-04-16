@@ -14,9 +14,6 @@ detailed analysis of model solutions and model characteristics.
 Version 1.0 consists of a results_analyzer module that calculates
 explanations of ill-conditioned basis matrices.
 
-Note: At the moment this repository is public, but final docs configuration
-and packages is not yet finished.   We recommend that you hold off on using it
-until version 1.0 is announced as available.
 
 # Documentation
 
@@ -91,7 +88,7 @@ on more advanced usage.
 # Getting a Gurobi License
 Alternatively to the bundled limited license, there are licenses that can handle models of all sizes.
 
-As a student or staff member of an academic institution you qualify for a free, full product license.
+As a student or staff member of an academic institution, you qualify for a free, full-product license.
 For more information, see:
 
 * https://www.gurobi.com/academia/academic-program-and-licenses/
