@@ -61,12 +61,14 @@ license. When installed via pip or conda, gurobipy ships with a free
 license for testing and can only solve models of limited size.
 
 
-Then use the explainer functions.   Example usage
+## Example usage
+### Using the explainer functions
 
-```
+```python
 import gurobipy as gp
 import gurobi_modelanalyzer as gma
-model=gp.read("myillconditionedmodel.mps")
+
+model = gp.read("myillconditionedmodel.mps")
 model.optimize()
 gma.kappa_explain(model)
 
@@ -83,6 +85,43 @@ gma.angle_explain(model)
 
 Use `help(gma.kappa_explain)` or `help(gma.angle_explain)` for information
 on more advanced usage.
+
+### Using the solution checker
+
+Testing a suboptimal solution
+
+```python
+import gurobipy as gp
+import gurobi_modelanalyzer as gma
+
+m = gp.read("examples/data/afiro.mps")
+
+sol = {m.getVarByName("X01"): 78, m.getVarByName("X22"): 495}
+sc = gma.SolCheck(m)
+
+sc.test_sol(sol)
+print(f"Solution Status: {sc.Status}")
+sc.optimize()
+for v in sol.keys():
+    print(f"{v.VarName}: Fixed value: {sol[v]}, Computed value: {v.X}")
+```
+
+Testing an infeasible solution
+
+```python
+m = gp.read("examples/data/misc07.mps")
+
+sol = {m.getVarByName("COL260"): 2400.5}
+sc = gma.sol_check(m)
+
+sc.test_sol(sol)
+
+print(f"Solution Status: {sc.Status}")
+sc.inf_repair()
+for c in m.getConstrs():
+    if abs(c._Violation) > 0.0001:
+        print(f"{c.ConstrName}: RHS: {c.RHS}, Violation: {c._Violation}")
+```
 
 
 # Getting a Gurobi License

@@ -30,6 +30,7 @@ future versions.
 
    installation
    illcond
+   solcheck
    contactus
    license
 

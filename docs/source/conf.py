@@ -6,21 +6,25 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+
 project = "Gurobi Model Analyzer"
-copyright = "2023, Gurobi Optimization, LLC. All Rights Reserved."
-html_logo = "_static/gurobi-logo-title.png"
+copyright = "2024, Gurobi Optimization"
+author = "Gurobi Optimization"
+html_title = "Gurobi Model Analyzer"
+
+html_theme = "gurobi_sphinxtheme"
+html_favicon = "https://www.gurobi.com/favicon.ico"
 
 # -- Warning banner while in beta -------------------------------------------
-#rst_prolog = """.. warning::
+# rst_prolog = """.. warning::
 #    This code is in a pre-release state. It may not be fully functional and breaking changes
 #    can occur without notice.
-#"""
+# """
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx_rtd_theme",
     "sphinx.ext.extlinks",
     "sphinxcontrib.bibtex",
 ]
@@ -45,5 +49,4 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
