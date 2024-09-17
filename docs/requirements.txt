@@ -1,3 +1,5 @@
+gurobi-sphinxtheme @ git+https://github.com/Gurobi/gurobi-sphinxtheme.git@main
+
 sphinx
 sphinx-rtd-theme
 sphinxcontrib.bibtex
