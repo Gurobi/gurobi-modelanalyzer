@@ -13,7 +13,7 @@ We encourage to install the package via pip (or add it to your
 .. note::
 
   If not already installed, this should install the :pypi:`gurobipy`
-  and :pypi:`numpy``
+  and :pypi:`numpy`
   packages.
 
 
