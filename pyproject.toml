@@ -11,6 +11,7 @@ license = "Apache-2.0"
 keywords = ["optimization"]
 authors = [
   { name = "Ed Klotz", email = "klotz@gurobi.com" },
+  { name = "Greg Glockner", email = "glockner@gurobi.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -27,6 +28,11 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+interactive = [
+  "questionary",
+]
+
 [project.urls]
 Documentation = "https://gurobi-optimization-gurobi-modelanalyzer.readthedocs-hosted.com/en/latest"
 Issues = "https://github.com/Gurobi/gurobi-modelanalyzer/issues"
@@ -34,3 +40,6 @@ Source = "https://github.com/Gurobi/gurobi-modelanalyzer"
 
 [tool.hatch.version]
 path = "src/gurobi_modelanalyzer/__init__.py"
+
+[project.scripts]
+gurobi_solcheck = "gurobi_modelanalyzer.solcheck:main_cli"

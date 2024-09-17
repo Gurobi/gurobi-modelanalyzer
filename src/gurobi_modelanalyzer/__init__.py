@@ -6,3 +6,5 @@ from .results_analyzer import (
     matrix_bitmap,
     converttofractions,
 )
+
+from .solcheck import SolCheck
