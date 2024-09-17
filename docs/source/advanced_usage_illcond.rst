@@ -462,20 +462,20 @@ models.
   add it to RampUpSlow_P_24_38 to eliminate u_24_38 and v_24_38.   Then consider the
   resulting combined constraint with Link_u_v_24_38, the next constraint in the sequence.
 
-  | combinedcon0:  - 165 u_24_37 - 330 v_24_38 + 165 v_24_39 <= 0
+  | combinedcon0: - 165 u_24_37 - 330 v_24_38 + 165 v_24_39 <= 0
   | Link_u_v_24_38: v_24_37 + u_24_37 - v_24_38 >= 0          
 
   Both of them intersect the variable v24_38, so one can multiply Link_u_v_24_38 by
   -330 and add it to the combined constraint to obtain another combined constraint.
   Then consider this new constraint with RampUpSlow_P_24_37.
 
-  | combinedcon1:  - 495 u_24_37 + -330 v24_37 + 165 v_24_39 <= 0
+  | combinedcon1: - 495 u_24_37 + -330 v24_37 + 165 v_24_39 <= 0
   | RampUpSlow_P_24_37: - 165 u_24_36 - 165 v_24_37 + 165 u_24_37 <= 0
 
   These two constraints both intersect u_24_37, so one can multiply RampUpSlow_P_24_37
   by 3 to obtain another combined constraint.
 
-  | combinedcon2:  -825 v24_37 -495 u_24_36  + 165 v_24_39 <= 0
+  | combinedcon2: -825 v24_37 -495 u_24_36 + 165 v_24_39 <= 0
 
   Note that the growth in the combined constraint is now starting to accelerate.
   One can continue this process of multiplying the next explanation constraint by
