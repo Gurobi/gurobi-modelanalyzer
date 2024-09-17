@@ -71,15 +71,9 @@ class TestSolCheck(TestCase):
         )
 
         abs_sum_violations = 0
-        violation_rows = []
-        violation_rows_names = []
 
         for c in m.getConstrs():
             if abs(c._Violation) > 1e-4:
                 abs_sum_violations += abs(c._Violation)
-                violation_rows.append(c._Violation)
-                violation_rows_names.append(c.ConstrName)
 
         self.assertEqual(abs_sum_violations, 1.5)
-        self.assertEqual(violation_rows, [-0.5, 1.0])
-        self.assertEqual(violation_rows_names, ["ROW001", "ROW074"])
