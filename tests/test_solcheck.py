@@ -1,5 +1,8 @@
 import io
+import os
 import pathlib
+import hashlib
+import subprocess
 import contextlib
 from unittest import TestCase
 
@@ -7,6 +10,7 @@ import gurobipy as gp
 from gurobi_modelanalyzer import SolCheck
 
 here = pathlib.Path(__file__).parent
+cwd = pathlib.Path(os.getcwd())
 
 
 class TestSolCheck(TestCase):
@@ -77,3 +81,119 @@ class TestSolCheck(TestCase):
                 abs_sum_violations += abs(c._Violation)
 
         self.assertEqual(abs_sum_violations, 1.5)
+
+
+class TestSolCheckCLI(TestCase):
+    def setUp(self):
+        self.afirofix_md5 = "f265f0c9554f2b480092757a83e47207"
+
+    def tearDown(self):
+        output_files = [
+            cwd.joinpath("afirofix.sol"),
+            cwd.joinpath("misc07fix.vio"),
+            cwd.joinpath("misc07fix.sol"),
+            cwd.joinpath("misc07fix.ilp"),
+        ]
+        for file in output_files:
+            if file.exists():
+                os.remove(file)
+
+    def test_suboptimal_solution(self):
+        afirofix_file = cwd.joinpath("afirofix.sol")
+        self.assertFalse(afirofix_file.exists())
+        cmd = (
+            f"gurobi_solcheck --model {str(here / 'dataset' / 'afiro.mps')} "
+            + f"--sol {str(here / 'dataset' / 'afiro.sol')} --result afirofix"
+        )
+        result = subprocess.getoutput(cmd)
+        self.assertIn(
+            "Solution is feasible for feasibility tolerance of 1e-06",
+            result,
+        )
+        self.assertIn("Difference: -5.0613", result)
+        self.assertTrue(afirofix_file.exists())
+
+        md5_ret = None
+        with open(afirofix_file, "rb") as f:
+            d = f.read()
+            md5_ret = hashlib.md5(d).hexdigest()
+
+        self.assertEqual(self.afirofix_md5, md5_ret)
+
+    def test_infeasible_solution(self):
+        misc07fix_vio_file = cwd.joinpath("misc07fix.vio")
+        self.assertFalse(misc07fix_vio_file.exists())
+        cmd = (
+            f"gurobi_solcheck --model {str(here / 'dataset' / 'misc07.mps')} "
+            + f"--sol {str(here / 'dataset' / 'misc07.sol')} --result misc07fix"
+        )
+        result = subprocess.getoutput(cmd)
+        self.assertTrue(misc07fix_vio_file.exists())
+
+        # Check log for expected output
+        self.assertIn(
+            "Model is infeasible",
+            result,
+        )
+        self.assertIn(
+            "Solution is infeasible for feasibility tolerance of 1e-06",
+            result,
+        )
+        self.assertIn(
+            "Relaxing to find smallest violation from fixed solution",
+            result,
+        )
+        self.assertIn(
+            "Fixed values are 1.5 from a feasible solution",
+            result,
+        )
+
+    def test_infeasible_solution_infmethodV(self):
+        misc07fix_sol_file = cwd.joinpath("misc07fix.sol")
+        self.assertFalse(misc07fix_sol_file.exists())
+        cmd = (
+            f"gurobi_solcheck --model {str(here / 'dataset' / 'misc07.mps')} "
+            + f"--sol {str(here / 'dataset' / 'misc07.sol')} --result misc07fix "
+            + "--infmethod V "
+        )
+        result = subprocess.getoutput(cmd)
+        self.assertTrue(misc07fix_sol_file.exists())
+
+        # Check log for expected output
+        self.assertIn(
+            "Model is infeasible",
+            result,
+        )
+        self.assertIn(
+            "Relaxing to find smallest violation from fixed solution",
+            result,
+        )
+        self.assertIn(
+            "Fixed values are 409.5 from a feasible solution",
+            result,
+        )
+
+    def test_infeasible_solution_infmethodI(self):
+        misc07fix_ilp_file = cwd.joinpath("misc07fix.ilp")
+        self.assertFalse(misc07fix_ilp_file.exists())
+        cmd = (
+            f"gurobi_solcheck --model {str(here / 'dataset' / 'misc07.mps')} "
+            + f"--sol {str(here / 'dataset' / 'misc07.sol')} --result misc07fix "
+            + "--infmethod I "
+        )
+        result = subprocess.getoutput(cmd)
+        self.assertTrue(misc07fix_ilp_file.exists())
+
+        # Check log for expected output
+        self.assertIn(
+            "Model is infeasible",
+            result,
+        )
+        self.assertIn(
+            "Solution is infeasible for feasibility tolerance of 1e-06",
+            result,
+        )
+        self.assertIn(
+            "Computing Irreducible Inconsistent Subsystem (IIS)",
+            result,
+        )
