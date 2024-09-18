@@ -13,6 +13,12 @@ author = "Gurobi Optimization"
 html_title = "Gurobi Model Analyzer"
 
 html_theme = "gurobi_sphinxtheme"
+html_theme_options = {
+    "version_warning": False,
+    "feedback_banner": False,
+    "construction_warning": False,
+}
+
 html_favicon = "https://www.gurobi.com/favicon.ico"
 
 # -- Warning banner while in beta -------------------------------------------
