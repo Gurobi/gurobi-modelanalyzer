@@ -120,6 +120,28 @@ class TestSolCheckCLI(TestCase):
 
         self.assertEqual(self.afirofix_md5, md5_ret)
 
+    def test_suboptimal_json_solution(self):
+        afirofix_file = cwd.joinpath("afirofix.sol")
+        self.assertFalse(afirofix_file.exists())
+        cmd = (
+            f"gurobi_solcheck --model {str(here / 'dataset' / 'afiro.mps')} "
+            + f"--sol {str(here / 'dataset' / 'afiro.json')} --result afirofix"
+        )
+        result = subprocess.getoutput(cmd)
+        self.assertIn(
+            "Solution is feasible for feasibility tolerance of 1e-06",
+            result,
+        )
+        self.assertIn("Difference: -5.0613", result)
+        self.assertTrue(afirofix_file.exists())
+
+        md5_ret = None
+        with open(afirofix_file, "rb") as f:
+            d = f.read()
+            md5_ret = hashlib.md5(d).hexdigest()
+
+        self.assertEqual(self.afirofix_md5, md5_ret)
+
     def test_infeasible_solution(self):
         misc07fix_vio_file = cwd.joinpath("misc07fix.vio")
         self.assertFalse(misc07fix_vio_file.exists())
