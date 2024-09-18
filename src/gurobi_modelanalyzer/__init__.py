@@ -1,4 +1,4 @@
-__version__ = "v1.0.1"
+__version__ = "v2.0.0"
 
 from .results_analyzer import (
     kappa_explain,
