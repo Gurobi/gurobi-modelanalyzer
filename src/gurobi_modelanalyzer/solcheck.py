@@ -233,7 +233,6 @@ class SolCheck:
 def main_cli():
     import argparse
     import gurobipy as gp
-    import questionary as qy
 
     parser = argparse.ArgumentParser(
         prog="gurobi_solcheck", description="Check if a solution is feasible"
@@ -266,6 +265,8 @@ def main_cli():
     if args.model:
         mfn = args.model
     else:
+        import questionary as qy
+
         print("Entering interactive mode")
         mfn = qy.path(
             "Select a model file",
