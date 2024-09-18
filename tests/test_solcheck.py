@@ -136,17 +136,13 @@ class TestSolCheckCLI(TestCase):
             result,
         )
         self.assertIn(
-            "Solution is infeasible for feasibility tolerance of 1e-06",
-            result,
+            "Solution is infeasible for feasibility tolerance of 1e-06", result
         )
         self.assertIn(
             "Relaxing to find smallest violation from fixed solution",
             result,
         )
-        self.assertIn(
-            "Fixed values are 1.5 from a feasible solution",
-            result,
-        )
+        self.assertIn("Fixed values are 1.5 from a feasible solution", result)
 
     def test_infeasible_solution_infmethodV(self):
         misc07fix_sol_file = cwd.joinpath("misc07fix.sol")
@@ -160,18 +156,12 @@ class TestSolCheckCLI(TestCase):
         self.assertTrue(misc07fix_sol_file.exists())
 
         # Check log for expected output
-        self.assertIn(
-            "Model is infeasible",
-            result,
-        )
+        self.assertIn("Model is infeasible", result)
         self.assertIn(
             "Relaxing to find smallest violation from fixed solution",
             result,
         )
-        self.assertIn(
-            "Fixed values are 409.5 from a feasible solution",
-            result,
-        )
+        self.assertIn("Fixed values are 409.5 from a feasible solution", result)
 
     def test_infeasible_solution_infmethodI(self):
         misc07fix_ilp_file = cwd.joinpath("misc07fix.ilp")
@@ -185,15 +175,12 @@ class TestSolCheckCLI(TestCase):
         self.assertTrue(misc07fix_ilp_file.exists())
 
         # Check log for expected output
+        self.assertIn("Model is infeasible", result)
         self.assertIn(
-            "Model is infeasible",
-            result,
-        )
-        self.assertIn(
-            "Solution is infeasible for feasibility tolerance of 1e-06",
-            result,
+            "Solution is infeasible for feasibility tolerance of 1e-06", result
         )
         self.assertIn(
             "Computing Irreducible Inconsistent Subsystem (IIS)",
             result,
         )
+        self.assertIn("IIS computed: 1 constraints, 2 bounds", result)
