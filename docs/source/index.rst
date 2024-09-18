@@ -3,16 +3,6 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. image:: _static/image8.png
-     :width: 220
-     :target: https://www.gurobi.com
-     :alt: Gurobi
-     :class: float-right
-
-..  rst-class::  clear-both
-
-
-
 
 Gurobi Modelanalyzer
 ====================
@@ -23,6 +13,9 @@ The initial module consists of two functions designed to provide
 explanations of ill conditioned basis matrices.  Additional modules
 to provide detailed information about model data shall be provided in
 future versions.
+
+The included solcheck module is used to analyze feasibility of a
+provided solution to a model instance.
 
 .. toctree::
    :maxdepth: 2

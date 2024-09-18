@@ -1,18 +1,10 @@
-<!---
-
-**⚠ Warning**
-
-```This code is in a pre-release state. It may not be fully functional and breaking changes can occur without notice.```
-
---->
-
 # Gurobi Model Analyzer
 
 Gurobi Model Analyzer is an
 [open-source](https://gurobi-modelanalyzer.readthedocs.io/en/stable/license.html) python package that provides
 detailed analysis of model solutions and model characteristics.
-Version 1.0 consists of a results_analyzer module that calculates
-explanations of ill-conditioned basis matrices.
+It consists of a results_analyzer module that calculates
+explanations of ill-conditioned basis matrices and a solcheck module that analysizes a given solution.
 
 
 # Documentation
@@ -39,7 +31,7 @@ If you encounter issues with Gurobi or gurobipy please contact
 - Python >= 3.9
 - [`numpy`](https://pypi.org/project/numpy/)  >= 1.21.5    (although earlier
   versions compatible with python 3.7 will probably work).
-
+- [questionary](https://pypi.org/project/questionary/) for the (optional) interactive version
 
 ## Pip installation
 
@@ -143,16 +135,6 @@ Other useful resources to get started:
 # Development
 We value any level of experience in using Gurobi Model Analyzer and would like to encourage you to
 contribute directly to this project. Please see the [Contributing Guide](CONTRIBUTING.md) for more information.
-
-## Source code
-You can clone the latest sources with the command:
-
-```
-git clone git@github.com:Gurobi/gurobi-modelanalyzer.git
-```
-
-
-## Testing
 
 
 ## Submitting a Pull Request
