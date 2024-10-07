@@ -38,7 +38,7 @@ This section describes the 3 most basic ways to run the explainer.
 Additional methods will be described later in the :doc:`advanced_usage_illcond`
 section. The :ref:`kappa_explain <APIkappa_explainLabel>` method looks for
 explanations of
-arbitrary size. By default it will provide a row-based explanation, but a
+arbitrary size. By default, it will provide a row-based explanation, but a
 column-based explanation can be obtained by setting the ``expltype`` function
 argument to ``"COLS"``.   Here is the simplest sequence of commands to do this.
 
@@ -107,8 +107,8 @@ The last 5 rows all consist of small multipliers and constraint
 coefficients on the order of 1 or less, so their contribution to the
 explanation is minimal.  The first two basis rows provide the
 explanation, and examination of these reveals that they intersect the
-same 3 variables, and that the rows are almost parallel.  This is thie
-cause of the ill conditioning.  Remedies depend on the model in
+same 3 variables, and that the rows are almost parallel.  This is the
+cause of the ill-conditioning.  Remedies depend on the model in
 general, but in this case the modeler should focus on whether the
 coefficient of 0.999999999 in constraint ``R09bad`` has a meaningful
 difference fromn the coefficient in constraint ``R09``, or if the
@@ -117,7 +117,7 @@ model.  In the former case, the model needs to reflect that difference
 in a way that it is larger; in the latter case the coefficient should
 be cleaned up to the true value of 1.0.
 
-The column based explanation is analagous, with an MPS file consisting
+The column-based explanation is analagous, with an MPS file consisting
 of a combined column named ``GRB_Combined_Column`` followed by the individual
 columns in the explanation.   Here is the explanation for the same model::
 
