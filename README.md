@@ -10,7 +10,7 @@ explanations of ill-conditioned basis matrices and a solcheck module that analys
 # Documentation
 
 The latest user manual is available on
-[readthedocs](https://gurobi-optimization-gurobi-modelanalyzer.readthedocs-hosted.com/en/latest/).
+[readthedocs](https://gurobi-modelanalyzer.readthedocs.io/en/latest/).
 
 
 # Contact us
