@@ -17,6 +17,7 @@ html_theme_options = {
     "version_warning": False,
     "feedback_banner": False,
     "construction_warning": False,
+    "sidebar_hide_name": False,
 }
 
 html_favicon = "https://www.gurobi.com/favicon.ico"
