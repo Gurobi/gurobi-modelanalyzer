@@ -106,6 +106,7 @@ def kappa_explain(
     if _debug != OFF:
         if _debugger != OFF:
             import pdb
+
             pdb.set_trace()
 
     if expltype == "COLS":
@@ -174,10 +175,9 @@ def kappa_explain(
         # with a huge ratio among two entries.  Use a separate, simpler
         # routine to create the explanation.
         #
-        resmodel, maxmult, minmult = build_singleton_resmodel(explmodel, \
-                                                              expltype)
+        resmodel, maxmult, minmult = build_singleton_resmodel(explmodel, expltype)
         illcond_report(resmodel, model.ModelName, expltype, maxmult, minmult)
-        return(resmodel)
+        return resmodel
     #
     #   Minimize the violations of B'y = 0 constraints.  Do not relax
     #   the e'y == 1 constraint, and the y variables are free, so they
@@ -520,8 +520,13 @@ def kappa_explain(
         # Done with column specific part of explanation.
         #
 
-    illcond_report(resmodel, model.ModelName, expltype, \
-                   max(yvaldict.values()), min(yvaldict.values()))
+    illcond_report(
+        resmodel,
+        model.ModelName,
+        expltype,
+        max(yvaldict.values()),
+        min(yvaldict.values()),
+    )
     if method == ANGLES:
         return ([], [], None)  # Compatibility with method=ANGLES
     else:
@@ -634,8 +639,7 @@ def extract_basis(
             explmodel.dispose()
             explmodel = gp.Model("rowsingleton_basismodel")
             build_explmodel(
-                model, explmodel, [minvar, maxvar], [mincon, maxcon], \
-                None, None, BYROWS
+                model, explmodel, [minvar, maxvar], [mincon, maxcon], None, None, BYROWS
             )
             #
             #
@@ -694,8 +698,7 @@ def extract_basis(
             explmodel.dispose()
             explmodel = gp.Model("colsingleton_basismodel")
             build_explmodel(
-                model, explmodel, [minvar, maxvar], [mincon, maxcon], \
-                None, None, BYCOLS
+                model, explmodel, [minvar, maxvar], [mincon, maxcon], None, None, BYCOLS
             )
             #
             # The 2x2 matrix is of the form  a1  0 | A2(1,.)
@@ -740,8 +743,9 @@ def extract_basis(
             minusvars.append(minusvar)
         #            explmodel.addSOS(GRB.SOS_TYPE1, [v, minusvar])
 
-        explmodel.addConstr(gp.quicksum(plusvars) - gp.quicksum(minusvars) \
-                            == 1, name="GRBNormalize")
+        explmodel.addConstr(
+            gp.quicksum(plusvars) - gp.quicksum(minusvars) == 1, name="GRBNormalize"
+        )
         explmodel.setObjective(gp.quicksum(plusvars) + gp.quicksum(minusvars))
     else:
         explvars = explmodel.getVars()
@@ -896,7 +900,7 @@ def build_explmodel(
             # with constraints not in modcons after the next loop.
             #
             conindexdict[con.index] = con
-            explcondict[con.index] = explmodel.addConstr(
+            explcondict[con.index] = explmodel.addLConstr(
                 0, GRB.EQUAL, 0, name=con.ConstrName
             )
 
@@ -987,30 +991,32 @@ def build_explmodel(
     if _debug != OFF:
         endtime = time.time()
         print("Time build_explmodel = ", endtime - starttime)
+
+
 #
 #   Handle the special case where the explanation consists of just
 #   two row singletons or column singletons with a large ratio.
 #   No need to map back to the original model or run feasrelax
 #   on the explainer model, which already has an optimal solution
-#   provided since the variables are fixed.  
+#   provided since the variables are fixed.
 #
 def build_singleton_resmodel(explmodel, expltype):
-    vars     = explmodel.getVars()
-    cons     = explmodel.getConstrs()
+    vars = explmodel.getVars()
+    cons = explmodel.getConstrs()
     #
     # No need to optimize the explmodel since all its variables are fixed.
     #
-    if vars[0].LB > vars[1].LB:    
+    if vars[0].LB > vars[1].LB:
         maxmult = vars[0].LB
         minmult = vars[1].LB
-        maxvar  = vars[0]
-        minvar  = vars[1]
+        maxvar = vars[0]
+        minvar = vars[1]
     else:
         maxmult = vars[1].LB
         minmult = vars[0].LB
-        maxvar  = vars[0]
-        minvar  = vars[1]
-        
+        maxvar = vars[0]
+        minvar = vars[1]
+
     if expltype == BYROWS:
         #
         # Transpose the explanation model into the results model.
@@ -1029,29 +1035,29 @@ def build_singleton_resmodel(explmodel, expltype):
         #
         resmodel = gp.Model()
         maxconname = "(mult=" + str(maxmult) + ")" + maxvar.VarName
-        col        = explmodel.getCol(maxvar)
-        con0       = col.getConstr(0)
-        con1       = col.getConstr(1)
+        col = explmodel.getCol(maxvar)
+        con0 = col.getConstr(0)
+        con1 = col.getConstr(1)
         if con1.ConstrName == "GRBNormalize":
             maxvarname = con0.ConstrName
-            maxcoeff   = col.getCoeff(0)
+            maxcoeff = col.getCoeff(0)
         else:
             maxvarname = con1.ConstrName
-            maxcoeff   = col.getCoeff(1)
-        thisvar = resmodel.addVar(name = maxvarname)
-        resmodel.addConstr(maxcoeff*thisvar == 0, name = maxconname)
+            maxcoeff = col.getCoeff(1)
+        thisvar = resmodel.addVar(name=maxvarname)
+        resmodel.addConstr(maxcoeff * thisvar == 0, name=maxconname)
         minconname = "(mult=" + str(minmult) + ")" + minvar.VarName
-        col        = explmodel.getCol(minvar)
-        con0       = col.getConstr(0)
-        con1       = col.getConstr(1)
+        col = explmodel.getCol(minvar)
+        con0 = col.getConstr(0)
+        con1 = col.getConstr(1)
         if con1.ConstrName == "GRBNormalize":
             minvarname = con0.ConstrName
-            mincoeff   = col.getCoeff(0)
+            mincoeff = col.getCoeff(0)
         else:
             minvarname = con1.ConstrName
-            mincoeff   = col.getCoeff(1)
-        thisvar = resmodel.addVar(name = minvarname)
-        resmodel.addConstr(mincoeff*thisvar == 0, name = minconname)
+            mincoeff = col.getCoeff(1)
+        thisvar = resmodel.addVar(name=minvarname)
+        resmodel.addConstr(mincoeff * thisvar == 0, name=minconname)
     else:
         #
         # Column based explanation is easier, as no tranposition of the
@@ -1062,7 +1068,7 @@ def build_singleton_resmodel(explmodel, expltype):
         # c1311: 1e+11 x3259 = 0
         # c1312: x3260 = 0
         # GRBNormalize: x3260 + x3259 = 1
-        #Bounds
+        # Bounds
         # x3260 = 1
         # x3259 = 1e-11
         #
@@ -1081,6 +1087,7 @@ def build_singleton_resmodel(explmodel, expltype):
     resmodel.ModelName = explmodel.ModelName
     return resmodel, maxmult, minmult
 
+
 def kappa_stats(model, data, KappaExact):
     kappa = model.Kappa
     kappaexact = -1
@@ -1098,6 +1105,8 @@ def kappa_stats(model, data, KappaExact):
     if data != None:
         data["Kappa"] = kappa
         data["KappaExact"] = kappaexact
+
+
 #
 #   Write out the final explanation, print summary info.
 #
@@ -1118,7 +1127,7 @@ def illcond_report(resmodel, modelname, expltype, maxabsmult, minabsmult):
     print("Maximum absolute multiplier value: ", maxabsmult)
     print("Minimum absolute multiplier value: ", minabsmult)
     print("--------------------------------------------------------")
-    
+
 
 #
 #   Split free variables into difference of two nonnegative variables.
@@ -1505,6 +1514,8 @@ def angle_explain(model, howmany=1, partol=1e-6):
         print("Time for main column based loop = ", endtime - starttime)
 
     return almostparrowlist, almostparcollist, explmodel
+
+
 #
 #   Utility routine to facilitate examination of explainer output.
 #   Provides a bitmap of the explanation matrix.  Requires matplotlib
@@ -1515,14 +1526,14 @@ def matrix_bitmap(model):
     #   Help function info
     #
     """Utility routine to facilitate examination of explainer output by
-    printing a bitmap of the nonzero structure.   Can also be used to 
-    obtain bitmaps for matrices of arbitrary models rather than the 
+    printing a bitmap of the nonzero structure.   Can also be used to
+    obtain bitmaps for matrices of arbitrary models rather than the
     explainer model.
-  
+
 
     Arguments:
     model      (required) The model whose constraint matrix will generate
-                          the bitmap.  Note that the routine may remove 
+                          the bitmap.  Note that the routine may remove
                           empty rows and columns from the constraint matrix
                           of the model, so make a copy of the model before
                           calling the routine if necessary.
@@ -1533,12 +1544,12 @@ def matrix_bitmap(model):
     except ImportError as e:
         print("Need matplotlib.pyplot installed to display bitmap.")
         return
-#
-#   
-#
-#   We only want the bitmap for variables that intersect at least one
-#   constraint.
-#
+    #
+    #
+    #
+    #   We only want the bitmap for variables that intersect at least one
+    #   constraint.
+    #
     varstodelete = []
     for var in model.getVars():
         col = model.getCol(var)
@@ -1546,10 +1557,10 @@ def matrix_bitmap(model):
             varstodelete.append(var)
     model.remove(varstodelete)
     model.update()
-#
-#   Similarly, we only want constraints that intersect at least one
-#   variable.
-#
+    #
+    #   Similarly, we only want constraints that intersect at least one
+    #   variable.
+    #
     constodelete = []
     for con in model.getConstrs():
         row = model.getRow(con)
@@ -1564,9 +1575,9 @@ def matrix_bitmap(model):
         modelname = model.ModelName
     if _debug != OFF:
         model.printStats()
-#
-#   Now do the plot.
-#
+    #
+    #   Now do the plot.
+    #
     A = model.getA()
     plt.spy(A, markersize=1)
     plt.title(modelname)
@@ -1574,17 +1585,18 @@ def matrix_bitmap(model):
 
 
 #
-#   Utility function that takes a list of decimal values and 
+#   Utility function that takes a list of decimal values and
 #   uses the Fraction package to provide a rational approximation.
 #
 from fractions import Fraction
+
 
 def converttofractions(vals):
     #
     #   Help function info
     #
     """Utility routine to convert decimal values to fractions.
-  
+
     Arguments:
     vals       (required) Array of decimal values to convert
     Returns:              Nothing; prints results to screen."""
@@ -1594,7 +1606,7 @@ def converttofractions(vals):
             continue
         frac = Fraction(v).limit_denominator()
         print(f"The approx fraction of {v} is {frac}.")
-    
+
 
 #
 #   Improve the readability of the output
@@ -1639,7 +1651,9 @@ def refine_output(model, absmultdict, expltype, submatrix):
         for conname in sorteddict.keys():
             contoadd = condict[conname]
             lhs = model.getRow(contoadd)
-            model.addConstr(lhs, contoadd.sense, contoadd.rhs, name=contoadd.ConstrName)
+            model.addLConstr(
+                lhs, contoadd.sense, contoadd.rhs, name=contoadd.ConstrName
+            )
         model.remove(cons[0:concnt])
         model.update()
     elif expltype == BYCOLS:
@@ -1938,21 +1952,21 @@ def refine_col_output(model, abscolmultdict):
     #
 
 
-
 #
 #   Delete linear constraints that have no nonzero coefficients
 #   Changes the model, so pass in a copy of you want to
 #   preserve the original model.
 #
 def removeemptyrows(model):
-    cons    = model.getConstrs()
+    cons = model.getConstrs()
     delcons = []
     for c in cons:
         row = model.getRow(c)
         if row.size() == 0:
             delcons.append(c)
     model.remove(delcons)
-    model.update()    
+    model.update()
+
 
 #
 #   Delete variables that have no nonzero coefficients in the
@@ -1961,15 +1975,15 @@ def removeemptyrows(model):
 #   preserve the original model.
 #
 def removeemptycolumns(model):
-    vars    = model.getVars()
+    vars = model.getVars()
     delvars = []
     for v in vars:
         col = model.getCol(v)
         if col.size() == 0:
             delvars.append(v)
     model.remove(delvars)
-    model.update()    
-    
+    model.update()
+
 
 #
 #   L1 norm of a specific constraint in a model.

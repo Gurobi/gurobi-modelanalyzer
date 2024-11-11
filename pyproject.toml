@@ -34,7 +34,7 @@ interactive = [
 ]
 
 [project.urls]
-Documentation = "https://gurobi-optimization-gurobi-modelanalyzer.readthedocs-hosted.com/en/latest"
+Documentation = "https://gurobi-modelanalyzer.readthedocs.io/en/latest/"
 Issues = "https://github.com/Gurobi/gurobi-modelanalyzer/issues"
 Source = "https://github.com/Gurobi/gurobi-modelanalyzer"
 
