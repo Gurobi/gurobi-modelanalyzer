@@ -1,4 +1,5 @@
 [![PyPI](https://img.shields.io/pypi/v/gurobi-modelanalyzer)](https://pypi.org/project/gurobi-modelanalyzer)
+[![Documentation Status](https://readthedocs.org/projects/gurobi-modelanalyzer/badge/?version=latest)](https://gurobi-modelanalyzer.readthedocs.io/en/latest/?badge=latest)
 
 # Gurobi Model Analyzer
 
