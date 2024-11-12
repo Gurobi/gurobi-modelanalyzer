@@ -1,3 +1,5 @@
+[![PyPI](https://img.shields.io/pypi/v/gurobi-modelanalyzer)](https://pypi.org/project/gurobi-modelanalyzer)
+
 # Gurobi Model Analyzer
 
 Gurobi Model Analyzer is an
