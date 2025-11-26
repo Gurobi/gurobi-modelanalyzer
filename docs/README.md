@@ -3,13 +3,17 @@
 1. Install the sphinx requirements:
 
 ```console
-python -m pip install -r requirements.txt
+uv sync --group docs
 ```
 
 2. Build the documentation as an html site:
 
 ```console
-make html
+make docs
+```
+or
+```console
+uv run --group=docs --directory=docs bash -c "make clean && make html"
 ```
 
 3. Open the built docs (`build/html/index.html`) in a browser
@@ -18,7 +22,7 @@ make html
 open build/html/index.html
 ```
 
-4. Run `make html` again and refresh the browser window to rebuild the docs
+4. Run step 2 again and refresh the browser window to rebuild the docs
 after making edits.
 
 ## Editing the docs
