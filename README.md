@@ -31,7 +31,7 @@ If you encounter issues with Gurobi or gurobipy please contact
 
 ## Dependencies
 
-- Python >= 3.9
+- Python >= 3.10
 - [`numpy`](https://pypi.org/project/numpy/)  >= 1.21.5    (although earlier
   versions compatible with python 3.7 will probably work).
 - [questionary](https://pypi.org/project/questionary/) for the (optional) interactive version

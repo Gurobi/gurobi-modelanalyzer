@@ -5,33 +5,32 @@ build-backend = "hatchling.build"
 [project]
 name = "gurobi-modelanalyzer"
 description = "Model analysis tools for explaining ill-conditioning and analyzing solutions."
+dynamic = ["version"]
+license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.8"
-license = "Apache-2.0"
 keywords = ["optimization"]
 authors = [
+  { name = "Gurobi Optimization, LLC", email = "support@gurobi.com" },
   { name = "Ed Klotz", email = "klotz@gurobi.com" },
   { name = "Greg Glockner", email = "glockner@gurobi.com" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
 ]
+
+requires-python = ">=3.10"
 dependencies = [
   "gurobipy",
   "numpy",
   "scipy",
-]
-dynamic = ["version"]
-
-[project.optional-dependencies]
-interactive = [
-  "questionary",
 ]
 
 [project.urls]
@@ -39,8 +38,49 @@ Documentation = "https://gurobi-modelanalyzer.readthedocs.io/en/latest/"
 Issues = "https://github.com/Gurobi/gurobi-modelanalyzer/issues"
 Source = "https://github.com/Gurobi/gurobi-modelanalyzer"
 
+
+[project.optional-dependencies]
+interactive = [
+  "questionary",
+]
+
+
+[dependency-groups]
+dev = [
+    "pytest>=8.1,<9",
+    "ipykernel>=6.29.5",
+    "pre-commit",
+    "pre-commit-uv",
+    "tox",
+    "tox-uv",
+]
+docs = [
+    "gurobi-sphinxtheme",
+    "ipykernel>=6.29.5",
+    "nbsphinx>=0.9.7",
+    "numpydoc>=1.9.0",
+    "sphinx>=7.4.7",
+    "sphinxcontrib.bibtex>=2.6.0",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-tabs>=3.4.5",
+    "sphinx-toolbox>=4.0.0",
+]
+
+
 [tool.hatch.version]
 path = "src/gurobi_modelanalyzer/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/gurobi_modelanalyzer"]
+
 [project.scripts]
 gurobi_solcheck = "gurobi_modelanalyzer.solcheck:main_cli"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+ignore  = ["F401"]
+
+[tool.uv.sources]
+gurobi-sphinxtheme = { git = "https://github.com/Gurobi/gurobi-sphinxtheme.git", rev = "main" }
