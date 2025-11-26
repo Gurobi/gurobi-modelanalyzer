@@ -26,7 +26,7 @@ def run(model_file: str, analyzers=[]):
         "fileName": os.path.basename(model_file),
         "fileType": fileType.upper(),
         "reportTimestamp": common.utc_date_formatted(
-            datetime.datetime.now(datetime.UTC)
+            datetime.datetime.now(datetime.timezone.utc)
         ),
         "gurobiVersion": "%d.%d.%d" % gp.gurobi.version(),
         "fileSize": os.stat(model_file).st_size,
