@@ -12,7 +12,6 @@ keywords = ["optimization"]
 authors = [
   { name = "Gurobi Optimization, LLC", email = "support@gurobi.com" },
   { name = "Ed Klotz", email = "klotz@gurobi.com" },
-  { name = "Greg Glockner", email = "glockner@gurobi.com" },
 ]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
