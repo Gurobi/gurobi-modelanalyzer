@@ -10,5 +10,5 @@ class TestAnalyzer(TestCase):
         self.file_path = str(here / "dataset" / "glass4.mps")
 
     def test_run(self):
-        data = analyzer.run(self.file_path)
+        analyzer.run(self.file_path)
         print("Done")

@@ -1,3 +1,4 @@
+from fractions import Fraction
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
@@ -174,7 +175,7 @@ def kappa_explain(
     explmodel, splitvardict, RSinginfo, CSinginfo, Singflag = extract_basis(
         model, modvars, modcons, expltype, method, condthresh, env=env
     )
-    if explmodel == None:  # Didn't find a basis for original model
+    if explmodel is None:  # Didn't find a basis for original model
         return None  # Nothing to explain
     resmodel = None
     kappa_stats(model, data, KappaExact)
@@ -239,7 +240,7 @@ def kappa_explain(
                 colrat = rat
         if colrat > 5:
             explmodel.setParam("ScaleFlag", 2)
-    if prmfile != None:
+    if prmfile is not None:
         explmodel.read(prmfile)
     minrelax = method == LASSO or method == RLS
     explmodel.feasRelax(
@@ -294,7 +295,6 @@ def kappa_explain(
     #   rows and one for building by column.
     #
     yvaldict = {}
-    ynamedict = {}
     yvars = None
     if expltype == BYROWS:
         yvars = explmodel.getVars()[0:nbas]
@@ -318,7 +318,6 @@ def kappa_explain(
         # to map the support of the y vector to the correct constraints
         # in the computed explanation.
         #
-        combinedcnt = 0
         combinedrhs = 0.0
         combinedlhs = gp.LinExpr()  # y'A; y is inf. certificate
         for c in rcons:
@@ -572,8 +571,8 @@ def extract_basis(
     #
     need_basis = False
     try:
-        test = model.Kappa
-    except AttributeError as e:
+        model.Kappa
+    except AttributeError:
         need_basis = True
 
     if need_basis:
@@ -592,18 +591,18 @@ def extract_basis(
             model.setParam("IterationLimit", 0)
             model.setParam("Method", 0)
             os.remove("./GRBjunk.bas")
-        except gp.GurobiError as e:
-            tmp = 0  # No statuses or factorization; solve from scratch
+        except gp.GurobiError:
+            ...  # No statuses or factorization; solve from scratch
 
         model.optimize()
         try:  # Confirm basis available after solve.
-            tmp2 = modvars[0].VBasis
-            tmp1 = modvars[0].X
-        except AttributeError as e:  # no basis; no explanation to return
+            modvars[0].VBasis
+            modvars[0].X
+        except AttributeError:  # no basis; no explanation to return
             return None, None, None, None, None
 
-    m = model.numConstrs
-    n = model.numVars
+    model.numConstrs
+    model.numVars
     #
     #   Extract the basic structural variables from the model into the model
     #   containing the basis matrix of interest.  When explaining by rows,
@@ -632,7 +631,6 @@ def extract_basis(
     #
     # TODO: consolidate as much code as possible in this if/elif block.
     if modeltype == BYROWS and len(RSinginfo) > 1:
-        maxrat = 0
         maxcoeff = 0
         mincoeff = float("inf")
         maxvar = None
@@ -691,7 +689,6 @@ def extract_basis(
                     var.UB = minmult
             Singflag = True
     elif modeltype == BYCOLS and len(CSinginfo) > 1:
-        maxrat = 0
         maxcoeff = 0
         mincoeff = float("inf")
         maxvar = None
@@ -832,7 +829,7 @@ def build_explmodel(
             col = model.getCol(var)
             collen = col.size()
             if collen == 1:  # record column singleton
-                if CSinginfo != None:
+                if CSinginfo is not None:
                     CSinginfo.append((col.getConstr(0), var, col.getCoeff(0)))
             for i in range(collen):
                 coeff = col.getCoeff(i)
@@ -848,7 +845,7 @@ def build_explmodel(
             coeflist.clear()
             varlist.clear()
 
-        if RSinginfo != None:
+        if RSinginfo is not None:
             for ind in range(model.NumConstrs):
                 if rowcounts[ind] == 1:
                     con = conindexdict[ind]
@@ -857,7 +854,7 @@ def build_explmodel(
                     if var.VBasis == GRB.BASIC:
                         RSinginfo.append((con, var, lhs.getCoeff(0)))
 
-        if CSinginfo != None:
+        if CSinginfo is not None:
             #
             # slack basic variables.  Ignore if processing row or column
             # singleton model (in which case CSinginfo is None).
@@ -910,7 +907,6 @@ def build_explmodel(
         #   y free
         #
         explcondict = {}
-        modvarlist = []
         conindexdict = {}
         for con in model.getConstrs():
             #
@@ -938,7 +934,7 @@ def build_explmodel(
             col = model.getCol(var)
             collen = col.size()
             if collen == 1:  # record column singleton
-                if CSinginfo != None:
+                if CSinginfo is not None:
                     CSinginfo.append((col.getConstr(0), var, col.getCoeff(0)))
 
             for k in range(collen):
@@ -955,7 +951,7 @@ def build_explmodel(
             colcons.clear()
             colcoeffs.clear()
 
-        if RSinginfo != None:
+        if RSinginfo is not None:
             for ind in range(model.NumConstrs):
                 if rowcounts[ind] == 1:
                     con = conindexdict[ind]
@@ -964,7 +960,7 @@ def build_explmodel(
                     if var.VBasis == GRB.BASIC:
                         RSinginfo.append((con, var, lhs.getCoeff(0)))
 
-        if CSinginfo != None:
+        if CSinginfo is not None:
             #
             # slack basic variables.  Ignore if processing row or column
             # singleton model (in which case CSinginfo is None).
@@ -1122,7 +1118,7 @@ def kappa_stats(model, data, KappaExact):
         print("Exact condition number: ", kappaexact)
     print("--------------------------------------------------------")
 
-    if data != None:
+    if data is not None:
         data["Kappa"] = kappa
         data["KappaExact"] = kappaexact
 
@@ -1168,7 +1164,7 @@ def illcond_report(
 #
 def split_mirroredvars(model, varstosplit=None):
     model.update()
-    if varstosplit == None:
+    if varstosplit is None:
         varstosplit = model.getVars()
 
     newvarlist = []  # This var and dict is used to handle
@@ -1313,7 +1309,7 @@ def angle_explain(model, howmany=1, partol=1e-6, env=None):
     explmodel, splitvardict, junk1, junk2, junk3 = extract_basis(
         model, modvars, modcons, None, False, env=env
     )
-    if explmodel == None:  # No basis for original model found.
+    if explmodel is None:  # No basis for original model found.
         return None, None, None  # Nothing to explain
     modcons = explmodel.getConstrs()
     modvars = explmodel.getVars()
@@ -1567,7 +1563,7 @@ def matrix_bitmap(model):
                           can be saved to a file."""
     try:
         import matplotlib.pyplot as plt
-    except ImportError as e:
+    except ImportError:
         print("Need matplotlib.pyplot installed to display bitmap.")
         return
     #
@@ -1610,16 +1606,10 @@ def matrix_bitmap(model):
     plt.show()
 
 
-#
-#   Utility function that takes a list of decimal values and
-#   uses the Fraction package to provide a rational approximation.
-#
-from fractions import Fraction
-
-
 def converttofractions(vals):
     #
-    #   Help function info
+    # Utility function that takes a list of decimal values and
+    #   # uses the Fraction package to provide a rational approximation.
     #
     """Utility routine to convert decimal values to fractions.
 

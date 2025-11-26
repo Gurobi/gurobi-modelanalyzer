@@ -49,6 +49,7 @@ interactive = [
 dev = [
     "pytest>=8.1,<9",
     "ipykernel>=6.29.5",
+    "matplotlib",
     "pre-commit",
     "pre-commit-uv",
     "tox",
@@ -80,7 +81,7 @@ gurobi_solcheck = "gurobi_modelanalyzer.solcheck:main_cli"
 line-length = 88
 
 [tool.ruff.lint]
-ignore  = ["F401"]
+ignore  = ["E731", "F401"]
 
 [tool.uv.sources]
 gurobi-sphinxtheme = { git = "https://github.com/Gurobi/gurobi-sphinxtheme.git", rev = "main" }

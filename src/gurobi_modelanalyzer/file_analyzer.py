@@ -75,7 +75,7 @@ def process_mps_details(modelfile, data):
             sections[section] = result[section]
 
     for section in result.keys():
-        if sections.get(section, None) is None and not section in blocks_ignored:
+        if sections.get(section, None) is None and section not in blocks_ignored:
             other_sections.append(section)
 
     data["fileLines"] = line_counter

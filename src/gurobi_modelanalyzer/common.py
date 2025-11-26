@@ -167,8 +167,6 @@ def qterm_min_value(var1, var2, qcoeff):
         cases of one or more infinite bounds separately.
         """
         bndlist = [l1, l2, u1, u2]
-        lblist = [l1, l2]
-        ublist = [u1, u2]
         minval = gp.GRB.INFINITY
         maxval = -gp.GRB.INFINITY
         if isfinite(bndlist):  # Easy; all bilinear products finite
@@ -419,10 +417,10 @@ def extractconstraints(model, prefix, suffix=None):
     cons = []
     for c in model.getConstrs():
         cstr = c.ConstrName
-        if prefix != None:
+        if prefix is not None:
             if not cstr.startswith(prefix):
                 continue
-        if suffix != None:
+        if suffix is not None:
             if not cstr.endswith(suffix):
                 continue
         cons.append(c)
@@ -440,10 +438,10 @@ def extractqconstraints(model, prefix, suffix=None):
     qcons = []
     for qc in model.getQConstrs():
         cstr = qc.QCName
-        if prefix != None:
+        if prefix is not None:
             if not cstr.startswith(prefix):
                 continue
-        if suffix != None:
+        if suffix is not None:
             if not cstr.endswith(suffix):
                 continue
         qcons.append(qc)
@@ -463,18 +461,18 @@ def extractvariables(model, prefix=None, suffix=None, bndthresh=None, types=None
     vars = []
     for v in model.getVars():
         vstr = v.VarName
-        if prefix != None:
+        if prefix is not None:
             if not vstr.startswith(prefix):
                 continue
-        if suffix != None:
+        if suffix is not None:
             if not vstr.endswith(suffix):
                 continue
-        if bndthresh != None:
-            if (v.UB >= GRB.INFINITY or v.UB < bndthresh) and (
-                v.LB <= -GRB.INFINITY or v.LB > -bndthresh
+        if bndthresh is not None:
+            if (v.UB >= gp.GRB.INFINITY or v.UB < bndthresh) and (
+                v.LB <= -gp.GRB.INFINITY or v.LB > -bndthresh
             ):
                 continue
-        if types != None:
+        if types is not None:
             hit = False
             for char in types:
                 if v.Vtype == char:

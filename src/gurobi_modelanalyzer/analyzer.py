@@ -25,7 +25,9 @@ def run(model_file: str, analyzers=[]):
     data = {
         "fileName": os.path.basename(model_file),
         "fileType": fileType.upper(),
-        "reportTimestamp": common.utc_date_formatted(datetime.datetime.utcnow()),
+        "reportTimestamp": common.utc_date_formatted(
+            datetime.datetime.now(datetime.UTC)
+        ),
         "gurobiVersion": "%d.%d.%d" % gp.gurobi.version(),
         "fileSize": os.stat(model_file).st_size,
         "fileSizeUncompressed": 0,
@@ -40,7 +42,7 @@ def run(model_file: str, analyzers=[]):
         with elapsed_timer() as elapsed:
             with capture_output() as out:
                 m = gp.read(model_file)
-    except:
+    except Exception:
         data["readerError"] = True
 
     finally:

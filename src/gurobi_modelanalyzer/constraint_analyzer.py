@@ -6,7 +6,6 @@ from gurobi_modelanalyzer import common
 
 
 def get_rhs_frequencies(model, base=10):
-    rhs_count = defaultdict(int)
     rhs_vals = []
     result = []
 
@@ -429,9 +428,6 @@ def process_quadratic_constraints(model, data):
 
     quadpart_variables = set()
     linpart_variables = set()
-
-    redundant_constraints = []
-    infeasible_constraints = []
 
     # Equality constraint
     counter_equality = 0
