@@ -23,6 +23,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8
       - name: Build docs (fail on warnings)
         run: uv run --group=docs --directory=docs bash -c 'make clean html SPHINXOPTS="-W --keep-going -n"'
