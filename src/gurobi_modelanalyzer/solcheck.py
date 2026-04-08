@@ -33,7 +33,7 @@ class SolCheck:
         self.inf_method = None
         self.Status = GRB.LOADED
         self.obj_diff = None
-        self.__solpat = re.compile("(\S+)\s+([+\-]?\d+\.?\d*([eE][+\-]?\d+)?)")
+        self.__solpat = re.compile(r"(\S+)\s+([+\-]?\d+\.?\d*([eE][+\-]?\d+)?)")
 
     def message(self, lines, pad=True):
         """Write lines using model logging"""
