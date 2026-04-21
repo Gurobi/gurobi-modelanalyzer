@@ -1,4 +1,4 @@
-__version__ = "v3.0.0"
+__version__ = "v3.0.0a1"
 
 from .common import _config
 

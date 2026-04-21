@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gurobi-modelanalyzer"
-description = "Model analysis tools for explaining ill-conditioning and analyzing solutions."
+description = "Model analysis tools for explaining ill-conditioning, analyzing solutions, and scaling problems."
 dynamic = ["version"]
 license = { file = "LICENSE" }
 readme = "README.md"
@@ -12,6 +12,7 @@ keywords = ["optimization"]
 authors = [
   { name = "Gurobi Optimization, LLC", email = "support@gurobi.com" },
   { name = "Ed Klotz", email = "klotz@gurobi.com" },
+  { name = "Vassilios Yfantis", email = "vassilios.yfantis@gurobi.com" },
 ]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
