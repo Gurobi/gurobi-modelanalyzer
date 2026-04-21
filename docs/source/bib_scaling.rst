@@ -1,5 +1,4 @@
 Bibliography/Further Reading
 ############################
 
-.. bibliography:: bib_illcond.bib
-   :all:
+.. bibliography:: bib_scaling.bib

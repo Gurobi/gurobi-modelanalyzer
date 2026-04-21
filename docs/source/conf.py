@@ -35,7 +35,7 @@ extensions = [
     "sphinxcontrib.bibtex",
 ]
 
-bibtex_bibfiles = ["bib_illcond.bib"]
+bibtex_bibfiles = ["bib_illcond.bib", "bib_scaling.bib"]
 
 extlinks_detect_hardcoded_links = True
 extlinks = {

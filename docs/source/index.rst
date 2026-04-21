@@ -24,6 +24,7 @@ provided solution to a model instance.
    installation
    illcond
    solcheck
+   scaling
    contactus
    license
 
