@@ -404,14 +404,11 @@ def _threshold_small_coefficients(
         Thresholded data in the same format as input
     """
     if scipy.sparse.issparse(data):
-        # For sparse matrices
-        data_lil = data.tolil()
-        for i in range(data_lil.shape[0]):
-            for j, val in zip(data_lil.rows[i], data_lil.data[i]):
-                if abs(val) < value_threshold:
-                    data_lil[i, j] = 0.0
-        # Convert to csr and eliminate zeros
-        return data_lil.tocsr()  # tocsr() automatically eliminates zeros
+        A = data.tocsr().copy()
+        mask = np.abs(A.data) >= value_threshold
+        A.data = A.data * mask
+        A.eliminate_zeros()
+        return A
     else:
         # For numpy arrays
         result = data.copy()

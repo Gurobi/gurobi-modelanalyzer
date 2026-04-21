@@ -16,7 +16,7 @@ class ScaledVar:
     def __init__(self, gurobi_var, col_scaling_factor):
         self._var = gurobi_var
         self._col_scaling_factor = col_scaling_factor
-        self.UnscBoundViolation = None  # Will be set by ComputeUnscVio
+        self.UnscBoundViolation = None  # Will be set by computeUnscVio
 
     @property
     def X(self):
@@ -154,7 +154,7 @@ class ScaledModel(gp.Model):
             "_scaled_qconstrs", lambda m: m.getQConstrs(), ScaledQConstr
         )
 
-    def ComputeUnscVio(self):
+    def computeUnscVio(self):
         """
         Compute unscaled constraint and bound violations using the
         unscaled variable values.
@@ -294,7 +294,7 @@ class ScaledModel(gp.Model):
         """
         return getattr(self, "_row_scaling", None)
 
-    def ComputeUnscObj(self):
+    def computeUnscObj(self):
         """
         Compute the unscaled objective value using original model coefficients
         and unscaled variable values.
@@ -344,7 +344,7 @@ class ScaledModel(gp.Model):
         --------
         float
             Unscaled objective value, or None if not computed.
-            Call :py:meth:`ComputeUnscObj` first.
+            Call :py:meth:`computeUnscObj` first.
         """
         return getattr(self, "_unsc_obj_val", None)
 

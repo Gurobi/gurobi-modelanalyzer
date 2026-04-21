@@ -86,7 +86,7 @@ unscaled solutions and computing violations in the original variable space.
 .. py:method:: ScaledModel.getConstrsUnscaled()
 
    Return a list of :ref:`ScaledConstr <APIScaledConstrLabel>` objects, one
-   per linear constraint. After calling :py:meth:`ComputeUnscVio`, each
+   per linear constraint. After calling :py:meth:`computeUnscVio`, each
    object exposes the unscaled constraint violation via ``UnscViolation``.
 
    :return: List of :ref:`ScaledConstr <APIScaledConstrLabel>` objects.
@@ -94,12 +94,12 @@ unscaled solutions and computing violations in the original variable space.
 .. py:method:: ScaledModel.getQConstrsUnscaled()
 
    Return a list of :ref:`ScaledQConstr <APIScaledConstrLabel>` objects, one
-   per quadratic constraint. After calling :py:meth:`ComputeUnscVio`, each
+   per quadratic constraint. After calling :py:meth:`computeUnscVio`, each
    object exposes the unscaled constraint violation via ``UnscViolation``.
 
    :return: List of :ref:`ScaledQConstr <APIScaledConstrLabel>` objects.
 
-.. py:method:: ScaledModel.ComputeUnscVio()
+.. py:method:: ScaledModel.computeUnscVio()
 
    Compute constraint and bound violations in the original (unscaled) variable
    space. Must be called after optimization. Populates ``UnscViolation`` on
@@ -108,7 +108,7 @@ unscaled solutions and computing violations in the original variable space.
    properties. The original model is stored automatically by
    :func:`~gurobi_modelanalyzer.scale_model`.
 
-.. py:method:: ScaledModel.ComputeUnscObj()
+.. py:method:: ScaledModel.computeUnscObj()
 
    Compute the objective value in the original (unscaled) variable space using
    the unscaled solution values from :py:meth:`getVarsUnscaled`. Must be
@@ -118,23 +118,23 @@ unscaled solutions and computing violations in the original variable space.
 
 .. py:attribute:: ScaledModel.UnscObjVal
 
-   Unscaled objective value computed by :py:meth:`ComputeUnscObj`. ``None``
+   Unscaled objective value computed by :py:meth:`computeUnscObj`. ``None``
    until that method is called.
 
 .. py:attribute:: ScaledModel.MaxUnscVio
 
    Maximum unscaled violation across all constraints and variable bounds.
-   Available after calling :py:meth:`ComputeUnscVio`.
+   Available after calling :py:meth:`computeUnscVio`.
 
 .. py:attribute:: ScaledModel.MaxUnscConstrVio
 
    Maximum unscaled violation across all linear and quadratic constraints.
-   Available after calling :py:meth:`ComputeUnscVio`.
+   Available after calling :py:meth:`computeUnscVio`.
 
 .. py:attribute:: ScaledModel.MaxUnscBoundVio
 
    Maximum unscaled variable bound violation.
-   Available after calling :py:meth:`ComputeUnscVio`.
+   Available after calling :py:meth:`computeUnscVio`.
 
 .. py:attribute:: ScaledModel.ScalingTime
 
@@ -174,7 +174,7 @@ underlying variable.
 .. py:attribute:: ScaledVar.UnscBoundViolation
 
    Unscaled bound violation for this variable. Available after calling
-   :py:meth:`ScaledModel.ComputeUnscVio`.
+   :py:meth:`ScaledModel.computeUnscVio`.
 
 
 .. _APIScaledConstrLabel:
@@ -191,4 +191,4 @@ Gurobi constraint attributes are forwarded to the underlying object.
                   ScaledQConstr.UnscViolation
 
    Unscaled constraint violation. Available after calling
-   :py:meth:`ScaledModel.ComputeUnscVio`.
+   :py:meth:`ScaledModel.computeUnscVio`.

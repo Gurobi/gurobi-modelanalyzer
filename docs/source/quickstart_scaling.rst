@@ -54,6 +54,11 @@ model and a method name:
 
    m_scaled.optimize()
 
+:py:func:`~gurobi_modelanalyzer.scale_model` returns a fully constructed
+:ref:`ScaledModel <APIScaledModelLabel>` object. You can inspect it before
+solving — for example, examine the scaling factors, check coefficient ranges,
+or inspect variables and constraints — and call ``optimize()`` only when ready.
+
 The scaled model is solved in the transformed space. To retrieve the solution
 values in the original variable space:
 
@@ -66,12 +71,12 @@ values in the original variable space:
 Checking Solution Quality
 *************************
 
-After optimization, use :py:meth:`ScaledModel.ComputeUnscVio` to compute
+After optimization, use :py:meth:`ScaledModel.computeUnscVio` to compute
 constraint and bound violations in the original (unscaled) variable space:
 
 .. code-block:: python
 
-   m_scaled.ComputeUnscVio()
+   m_scaled.computeUnscVio()
 
    print(f"Max constraint violation: {m_scaled.MaxUnscConstrVio:.2e}")
    print(f"Max bound violation:      {m_scaled.MaxUnscBoundVio:.2e}")

@@ -189,12 +189,12 @@ Computing the Unscaled Objective
 *********************************
 
 To retrieve the objective value in the original variable space after
-optimization, use :py:meth:`ScaledModel.ComputeUnscObj`:
+optimization, use :py:meth:`ScaledModel.computeUnscObj`:
 
 .. code-block:: python
 
    m_scaled.optimize()
-   m_scaled.ComputeUnscObj()
+   m_scaled.computeUnscObj()
    print(f"Unscaled objective: {m_scaled.UnscObjVal:.6e}")
    print(f"Scaled objective:   {m_scaled.ObjVal:.6e}")
 

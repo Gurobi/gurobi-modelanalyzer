@@ -14,9 +14,7 @@ import gurobi_modelanalyzer.common as common
 from .methods import (
     ModelData,
     _threshold_small_coefficients,
-    equilibration,
-    geometric_mean,
-    arithmetic_mean,
+    _iterative_scaling,
     quad_equilibration,
     _print_scaling_log,
     _extract_range_stats,
@@ -122,8 +120,7 @@ def scale_model(
 
     Creates a scaled version of the input model using the specified
     scaling method. The scaled model can be solved, and the solution
-    can be unscaled back to the
-    original variable space.
+    can be unscaled back to the original variable space.
 
     Parameters:
     -----------
@@ -246,11 +243,11 @@ def scale_model(
         cols_to_scale.append(i)
 
     # Compute rows to scale: skip any constraint marked with _scale=0.
-    rows_to_scale = [
-        i
-        for i, constr in enumerate(model.getConstrs())
-        if getattr(constr, "_scale", 1) != 0
-    ]
+    rows_to_scale = []
+    for i, constr in enumerate(model.getConstrs()):
+        if getattr(constr, "_scale", 1) == 0:
+            continue
+        rows_to_scale.append(i)
 
     # Build initial scaling matrices from _init_scaling attributes when needed.
     if init_scaling > 0:
@@ -279,7 +276,7 @@ def scale_model(
     )
 
     if init_scaling == 1:
-        # ── Mode 1: apply user-provided scaling only, skip the algorithm ──
+        # Mode 1: apply user-provided scaling only, skip the algorithm.
         logger.info("Using user-provided initial scaling (init_scaling=1).")
         col_scaling = col_init_scaling
         row_scaling = row_init_scaling
@@ -288,7 +285,7 @@ def scale_model(
         if q_matrix.nnz > 0:
             scaled_q_matrix = col_scaling @ q_matrix @ col_scaling
     else:
-        # ── Modes 0 and 2: run the iterative algorithm ─────────────────────
+        # Modes 0 and 2: run the iterative algorithm.
         # Mode 2 (warmstart): pre-scale input matrices with user factors so
         # the algorithm continues from that starting point.
         if init_scaling == 2:
@@ -307,39 +304,17 @@ def scale_model(
             obj_vector_in = model_data.obj_vector
 
         if q_matrix.nnz == 0:  # LP / QCP: no quadratic objective
-            if method == "equilibration":
-                (scaled_matrix, row_scaling, col_scaling, iteration_logs) = (
-                    equilibration(
-                        constr_matrix_in,
-                        cols_to_scale,
-                        rows_to_scale,
-                        scale_passes,
-                        scale_conv_tol,
-                        scaling_time_limit=scaling_time_limit,
-                    )
+            (scaled_matrix, row_scaling, col_scaling, iteration_logs) = (
+                _iterative_scaling(
+                    constr_matrix_in,
+                    cols_to_scale,
+                    rows_to_scale,
+                    scale_passes,
+                    scale_conv_tol,
+                    method,
+                    scaling_time_limit=scaling_time_limit,
                 )
-            elif method == "geometric_mean":
-                (scaled_matrix, row_scaling, col_scaling, iteration_logs) = (
-                    geometric_mean(
-                        constr_matrix_in,
-                        cols_to_scale,
-                        rows_to_scale,
-                        scale_passes,
-                        scale_conv_tol,
-                        scaling_time_limit=scaling_time_limit,
-                    )
-                )
-            elif method == "arithmetic_mean":
-                (scaled_matrix, row_scaling, col_scaling, iteration_logs) = (
-                    arithmetic_mean(
-                        constr_matrix_in,
-                        cols_to_scale,
-                        rows_to_scale,
-                        scale_passes,
-                        scale_conv_tol,
-                        scaling_time_limit=scaling_time_limit,
-                    )
-                )
+            )
             # Accumulate initial factors into the total for mode 2
             if init_scaling == 2:
                 col_scaling = col_init_scaling @ col_scaling
