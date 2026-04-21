@@ -1,7 +1,9 @@
+import io
 import os
 import pathlib
 import unittest
 import warnings
+from contextlib import redirect_stderr
 
 import gurobipy as gp
 from gurobipy import GRB
@@ -29,8 +31,7 @@ cwd = pathlib.Path(os.getcwd())
 
 def _make_env():
     """Return a silent Gurobi environment."""
-    env = gp.Env()
-    env.setParam("OutputFlag", 0)
+    env = gp.Env(params={"OutputFlag": 0})
     return env
 
 
@@ -87,24 +88,32 @@ class TestScaleModelAPI(unittest.TestCase):
     # ── all three LP methods produce a ScaledModel ────────────────────────
 
     def test_equilibration_returns_scaled_model(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     def test_geometric_mean_returns_scaled_model(self):
-        ms = scale_model(self.model, "geometric_mean", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "geometric_mean", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     def test_arithmetic_mean_returns_scaled_model(self):
-        ms = scale_model(self.model, "arithmetic_mean", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "arithmetic_mean", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     # ── structural checks ─────────────────────────────────────────────────
 
     def test_scaling_matrices_match_model_dimensions(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         n_vars = self.model.NumVars
         n_constrs = self.model.NumConstrs
         self.assertEqual(ms.ColScaling.shape, (n_vars, n_vars))
@@ -112,25 +121,33 @@ class TestScaleModelAPI(unittest.TestCase):
         ms.close()
 
     def test_scaling_time_is_positive(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsNotNone(ms.ScalingTime)
         self.assertGreater(ms.ScalingTime, 0.0)
         ms.close()
 
     def test_variables_have_scaled_suffix(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         for v in ms.getVars():
             self.assertTrue(v.VarName.endswith("_scaled"), v.VarName)
         ms.close()
 
     def test_constraints_have_scaled_suffix(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         for c in ms.getConstrs():
             self.assertTrue(c.ConstrName.endswith("_scaled"), c.ConstrName)
         ms.close()
 
     def test_var_and_constr_counts_preserved(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertEqual(ms.NumVars, self.model.NumVars)
         self.assertEqual(ms.NumConstrs, self.model.NumConstrs)
         ms.close()
@@ -138,10 +155,24 @@ class TestScaleModelAPI(unittest.TestCase):
     # ── logging ───────────────────────────────────────────────────────────
 
     def test_silent_when_log_to_console_is_0(self):
-        # Should complete without error and still return a valid ScaledModel
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
-        self.assertIsInstance(ms, ScaledModel)
-        ms.close()
+        with redirect_stderr(io.StringIO()) as console:
+            ms = scale_model(
+                self.model, "equilibration", env=self.env, scaling_log_to_console=0
+            )
+            self.assertIsInstance(ms, ScaledModel)
+            ms.close()
+        output = console.getvalue()
+        self.assertNotIn("Scaling Method:", output)
+
+    def test_silent_when_log_to_console_is_1(self):
+        with redirect_stderr(io.StringIO()) as console:
+            ms = scale_model(
+                self.model, "equilibration", env=self.env, scaling_log_to_console=1
+            )
+            self.assertIsInstance(ms, ScaledModel)
+            ms.close()
+        output = console.getvalue()
+        self.assertIn("Scaling Method:", output)
 
     def test_log_written_to_file(self):
         log_path = cwd / "test_scaling_output.log"
@@ -149,6 +180,7 @@ class TestScaleModelAPI(unittest.TestCase):
             ms = scale_model(
                 self.model,
                 "equilibration",
+                env=self.env,
                 scaling_log=str(log_path),
                 scaling_log_to_console=0,
             )
@@ -176,18 +208,22 @@ class TestScaleModelSolve(unittest.TestCase):
         self.env.close()
 
     def test_solve_yields_feasible_unscaled_solution(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
 
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
         self.assertIsNotNone(ms.MaxUnscVio)
         self.assertLess(ms.MaxUnscVio, 1e-4)
         ms.close()
 
     def test_getVarsUnscaled_returns_ScaledVar_objects(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
 
@@ -217,7 +253,9 @@ class TestScaleOptOut(unittest.TestCase):
     def test_var_with_scale_0_not_column_scaled(self):
         """Column scaling factor for a var with _scale=0 must be exactly 1."""
         self.model.getVars()[0]._scale = 0
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         col_diag = ms.ColScaling.diagonal()
         self.assertAlmostEqual(col_diag[0], 1.0, places=10)
         ms.close()
@@ -225,7 +263,9 @@ class TestScaleOptOut(unittest.TestCase):
     def test_constr_with_scale_0_not_row_scaled(self):
         """Row scaling factor for a constraint with _scale=0 must be exactly 1."""
         self.model.getConstrs()[0]._scale = 0
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         row_diag = ms.RowScaling.diagonal()
         self.assertAlmostEqual(row_diag[0], 1.0, places=10)
         ms.close()
@@ -346,16 +386,22 @@ class TestQPScaling(unittest.TestCase):
 
     def test_non_equilibration_method_raises_warning(self):
         with self.assertWarns(UserWarning):
-            ms = scale_model(self.model, "geometric_mean", scaling_log_to_console=0)
+            ms = scale_model(
+                self.model, "geometric_mean", env=self.env, scaling_log_to_console=0
+            )
             ms.close()
 
     def test_equilibration_returns_scaled_model(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     def test_qp_scaled_model_is_solvable(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
@@ -379,36 +425,48 @@ class TestQCPScaling(unittest.TestCase):
     # ── all three methods run on a QCP ────────────────────────────────────
 
     def test_equilibration_returns_scaled_model(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     def test_geometric_mean_returns_scaled_model(self):
-        ms = scale_model(self.model, "geometric_mean", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "geometric_mean", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     def test_arithmetic_mean_returns_scaled_model(self):
-        ms = scale_model(self.model, "arithmetic_mean", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "arithmetic_mean", env=self.env, scaling_log_to_console=0
+        )
         self.assertIsInstance(ms, ScaledModel)
         ms.close()
 
     # ── qconstr count and suffix ──────────────────────────────────────────
 
     def test_qconstr_count_preserved(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertEqual(ms.NumQConstrs, self.model.NumQConstrs)
         ms.close()
 
     def test_quad_scaling_factors_stored(self):
         """_quad_scaling_factors must contain one entry per quadratic constraint."""
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertTrue(hasattr(ms, "_quad_scaling_factors"))
         self.assertEqual(len(ms._quad_scaling_factors), self.model.NumQConstrs)
         ms.close()
 
     def test_quad_scaling_factors_are_positive(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         for sf in ms._quad_scaling_factors:
             self.assertGreater(sf, 0.0)
         ms.close()
@@ -416,10 +474,12 @@ class TestQCPScaling(unittest.TestCase):
     # ── getQConstrsUnscaled ───────────────────────────────────────────────
 
     def test_getQConstrsUnscaled_returns_ScaledQConstr_objects(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
 
         qconstrs = ms.getQConstrsUnscaled()
         self.assertEqual(len(qconstrs), self.model.NumQConstrs)
@@ -430,7 +490,9 @@ class TestQCPScaling(unittest.TestCase):
     # ── solve + unscaling ─────────────────────────────────────────────────
 
     def test_qcp_scaled_model_is_solvable(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
@@ -438,24 +500,28 @@ class TestQCPScaling(unittest.TestCase):
 
     def test_qcp_unscaled_solution_satisfies_quadratic_constraint(self):
         """
-        After solving the scaled QCP, ComputeUnscVio should report zero
+        After solving the scaled QCP, computeUnscVio should report zero
         violation for the quadratic constraint at the unscaled solution.
         """
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
 
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
         self.assertIsNotNone(ms.MaxUnscVio)
         self.assertLess(ms.MaxUnscVio, 1e-4)
         ms.close()
 
     def test_qcp_qconstr_unscaled_violation_is_populated(self):
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
 
         for qc in ms.getQConstrsUnscaled():
             self.assertIsNotNone(qc.UnscViolation)
@@ -467,7 +533,9 @@ class TestQCPScaling(unittest.TestCase):
     def test_qconstr_with_scale_0_has_scaling_factor_1(self):
         """A quadratic constraint with _scale=0 must get a scaling factor of 1.0."""
         self.model.getQConstrs()[0]._scale = 0
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         self.assertAlmostEqual(ms._quad_scaling_factors[0], 1.0, places=10)
         ms.close()
 
@@ -507,7 +575,9 @@ class TestInitScaling(unittest.TestCase):
     def test_mode0_ignores_init_scaling_attribute(self):
         """With init_scaling=0, _init_scaling attributes have no effect."""
         self.model.getVars()[0]._init_scaling = 42.0
-        ms_plain = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms_plain = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms_attr = scale_model(
             self.model, "equilibration", init_scaling=0, scaling_log_to_console=0
         )
@@ -629,7 +699,7 @@ class TestInitScaling(unittest.TestCase):
         )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
         self.assertLess(ms.MaxUnscVio, 1e-4)
         ms.close()
 
@@ -680,7 +750,7 @@ class TestInitScalingQCP(unittest.TestCase):
         ms.close()
 
 
-# ── MIQCP: ComputeUnscVio and ComputeUnscObj do not raise TypeError ───────
+# ── MIQCP: computeUnscVio and computeUnscObj do not raise TypeError ───────
 
 
 def _tiny_miqcp(env):
@@ -707,8 +777,8 @@ def _tiny_miqcp(env):
 class TestMIQCPScaling(unittest.TestCase):
     """
     Regression tests for TypeError when float() is called on a numpy matrix
-    returned by sparse @ dense quadratic expressions in ComputeUnscVio and
-    ComputeUnscObj.
+    returned by sparse @ dense quadratic expressions in computeUnscVio and
+    computeUnscObj.
     """
 
     def setUp(self):
@@ -720,35 +790,41 @@ class TestMIQCPScaling(unittest.TestCase):
         self.env.close()
 
     def test_compute_unsc_vio_does_not_raise(self):
-        """ComputeUnscVio must not raise TypeError on a solved MIQCP."""
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        """computeUnscVio must not raise TypeError on a solved MIQCP."""
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
         # Must not raise: "only 0-dimensional arrays can be converted to
         # Python scalars"
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
         self.assertIsNotNone(ms.MaxUnscVio)
         self.assertIsInstance(ms.MaxUnscVio, float)
         ms.close()
 
     def test_compute_unsc_vio_value_is_near_zero(self):
         """Unscaled violations must be negligible at an optimal solution."""
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
-        ms.ComputeUnscVio()
+        ms.computeUnscVio()
         self.assertLess(ms.MaxUnscVio, 1e-4)
         ms.close()
 
     def test_compute_unsc_obj_does_not_raise(self):
-        """ComputeUnscObj must not raise TypeError on a solved MIQCP."""
-        ms = scale_model(self.model, "equilibration", scaling_log_to_console=0)
+        """computeUnscObj must not raise TypeError on a solved MIQCP."""
+        ms = scale_model(
+            self.model, "equilibration", env=self.env, scaling_log_to_console=0
+        )
         ms.setParam("OutputFlag", 0)
         ms.optimize()
         self.assertEqual(ms.Status, GRB.OPTIMAL)
-        ms.ComputeUnscObj()
+        ms.computeUnscObj()
         self.assertIsNotNone(ms.UnscObjVal)
         self.assertIsInstance(ms.UnscObjVal, float)
         ms.close()
