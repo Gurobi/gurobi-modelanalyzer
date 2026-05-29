@@ -76,6 +76,7 @@ packages = ["src/gurobi_modelanalyzer"]
 
 [project.scripts]
 gurobi_solcheck = "gurobi_modelanalyzer.solcheck:main_cli"
+gurobi_cls = "gurobi_modelanalyzer.scaling.cli:main_cli"
 
 [tool.ruff]
 line-length = 88

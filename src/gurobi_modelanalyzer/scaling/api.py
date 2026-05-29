@@ -104,7 +104,7 @@ def _capture_model_stats(model: gp.Model) -> str:
 def scale_model(
     model: gp.Model,
     method: str,
-    scale_passes: int = 5,
+    scale_passes: int = 1,
     scale_conv_tol: float = 1e-4,
     scaling_lb: float = 1e-8,
     scaling_ub: float = 1e8,
