@@ -5,5 +5,6 @@ Model Scaling
 
    quickstart_scaling
    advanced_usage_scaling
+   cli_scaling
    apiref_scaling
    bib_scaling

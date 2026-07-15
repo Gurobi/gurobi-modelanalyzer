@@ -20,21 +20,38 @@ Choosing a Scaling Method
 Three iterative scaling methods are available. The table below summarises
 which model types each supports.
 
-+--------------------+----------+----------+----------+
-| Method             | (MI)LP   | (MI)QP   | (MI)QCP  |
-+====================+==========+==========+==========+
-| ``equilibration``  |  ✓       |  ✓       |  ✓       |
-+--------------------+----------+----------+----------+
-| ``geometric_mean`` |  ✓       |  —       |  ✓       |
-+--------------------+----------+----------+----------+
-| ``arithmetic_mean``|  ✓       |  —       |  ✓       |
-+--------------------+----------+----------+----------+
+.. note::
+
+   This module uses a finer classification of model types than Gurobi's own
+   documentation. Gurobi refers to models with quadratic constraints generically
+   as "QCP", regardless of whether a quadratic objective is also present. Here
+   we distinguish:
+
+   * **(MI)QCP**: quadratic constraints with a **linear** objective.
+   * **(MI)QCQP**: quadratic constraints **and** a quadratic objective.
+
+   This distinction matters because support for the three scaling methods
+   depends on whether a quadratic objective is present, not on whether
+   quadratic constraints are present.
+
++--------------------+----------+----------+----------+----------+----------+
+| Method             | (MI)LP   | (MI)QP   | (MI)QCP  | (MI)QCQP | (MI)NLP  |
++====================+==========+==========+==========+==========+==========+
+| ``equilibration``  |  ✓       |  ✓       |  ✓       |  ✓       |  —       |
++--------------------+----------+----------+----------+----------+----------+
+| ``geometric_mean`` |  ✓       |  —       |  ✓       |  —       |  —       |
++--------------------+----------+----------+----------+----------+----------+
+| ``arithmetic_mean``|  ✓       |  —       |  ✓       |  —       |  —       |
++--------------------+----------+----------+----------+----------+----------+
+
+(MI)NLP models are not currently supported by any scaling method.
 
 **Equilibration** is the recommended default. It iteratively scales rows and
 columns to bring the magnitudes of the nonzero coefficients to a similar range,
 following the approach described in :cite:`Elble2011`. It is the only method
-supported for models with a quadratic objective. For (MI)LP and (MI)QCP models,
-``geometric_mean`` and ``arithmetic_mean`` are also available.
+that supports models with a quadratic objective ((MI)QP and (MI)QCQP). For
+(MI)LP and (MI)QCP models (linear objective), ``geometric_mean`` and
+``arithmetic_mean`` are also available.
 
 For models with a quadratic objective ((MI)QP), the equilibration procedure
 differs from the LP case. Instead of scaling the constraint matrix alone, a
@@ -66,7 +83,7 @@ The iterative scaling algorithm repeats until the maximum deviation of the
 scaling factors from 1 falls below ``scale_conv_tol``, the number of passes reaches
 ``scale_passes``, or the elapsed time budget is exhausted. When
 ``scaling_time_limit`` is set, the algorithm completes the current pass before
-stopping — it does not interrupt a pass mid-way.
+stopping; it does not interrupt a pass mid-way.
 
 .. code-block:: python
 
@@ -78,13 +95,25 @@ stopping — it does not interrupt a pass mid-way.
        scaling_time_limit=30.0,  # stop after completing the current pass
    )
 
-The default of five passes is sufficient for most models. However, there is an
-important tradeoff to be aware of: more scaling passes generally improve
-numerical conditioning but can increase unscaled constraint and bound
-violations after solving (because the solution is recovered in the original
-variable space). Users should experiment with ``scale_passes`` for their
-specific model and evaluate the resulting ``MaxUnscVio`` to find a balance
-between scaling time, model solution time, and unscaled solution quality.
+The default of one pass is intentionally conservative: a single scaling pass
+can itself take significant time on large models, and the primary goal is to
+reduce the solver's work, not to achieve a perfectly scaled matrix at any cost.
+The tradeoff has two dimensions:
+
+* **Scaling time vs. solution time.** Additional passes improve conditioning
+  and can substantially reduce solver runtime, but they add upfront cost.
+  For a model that is already moderately well-scaled, one pass may be enough
+  to achieve the desired speedup. For severely ill-conditioned models, allowing
+  more passes is likely worthwhile.
+
+* **Conditioning vs. unscaled solution quality.** More scaling passes generally
+  improve numerical conditioning but can increase unscaled constraint and bound
+  violations after solving, because the solution is recovered in the original
+  variable space by applying the inverse scaling transformation.
+
+Users are encouraged to experiment with ``scale_passes`` for their specific
+model and to evaluate the resulting ``MaxUnscVio`` alongside solver runtime to
+find the right balance.
 
 The ``scaling_lb`` and ``scaling_ub`` parameters bound the scaling factors,
 preventing extreme rescaling that could itself introduce numerical issues:
@@ -159,7 +188,7 @@ when rough scaling estimates are available but further refinement is desired.
 
 When both ``_init_scaling`` and ``_scale = 0`` are set on the same variable or
 constraint, ``_init_scaling`` takes priority. The scaling factor is fixed at
-the value of ``_init_scaling`` and is not modified by the algorithm — it is
+the value of ``_init_scaling`` and is not modified by the algorithm. It is
 held constant throughout all passes, effectively locking that factor in place.
 
 
@@ -183,6 +212,25 @@ the ``ColScaling`` and ``RowScaling`` properties:
 A wide column factor range suggests the original model had highly variable
 coefficient magnitudes across variables. Inspecting the individual factors can
 reveal which variables or constraints drove the need for scaling.
+
+The factor for each individual variable or constraint is also accessible
+directly as a ``scaling_factor`` attribute on the wrapper objects returned by
+:py:meth:`ScaledModel.getVarsUnscaled` and
+:py:meth:`ScaledModel.getConstrsUnscaled`:
+
+.. code-block:: python
+
+   m_scaled = gma.scale_model(m, method="equilibration")
+
+   for var in m_scaled.getVarsUnscaled():
+       print(f"{var.VarName}: scaling factor = {var.scaling_factor:.4e}")
+
+   for constr in m_scaled.getConstrsUnscaled():
+       print(f"{constr.ConstrName}: scaling factor = {constr.scaling_factor:.4e}")
+
+   # Quadratic constraints follow the same pattern:
+   for qconstr in m_scaled.getQConstrsUnscaled():
+       print(f"{qconstr.QCName}: scaling factor = {qconstr.scaling_factor:.4e}")
 
 
 Computing the Unscaled Objective
@@ -262,4 +310,138 @@ factors from 1 in that pass. When it falls below ``scale_conv_tol``,
 the algorithm has converged and no further passes are performed. The **Time (s)**
 column shows cumulative wall-clock time up to and including that pass. Comparing the
 original and scaled **Matrix range** shows how much the coefficient spread has
-been reduced — a tighter range indicates better conditioning.
+been reduced. A tighter range often indicates better conditioning.
+
+
+.. _ScalingFilesLabel:
+
+Scaling Files
+*************
+
+Scaling factors can be saved to and loaded from plain-text ``.scl`` files.
+This makes it possible to:
+
+* reproduce a previously found scaling exactly on a re-run,
+* share scaling factors between runs or users,
+* provide domain-knowledge-based initial factors without writing Python code,
+* use scaling factors found via the Python API as input to ``gurobi_cls``,
+  and vice versa.
+
+
+File Format
+~~~~~~~~~~~
+
+A ``.scl`` file is a plain-text file. Lines beginning with ``#`` and blank
+lines are ignored. An optional version header must appear before the first
+section if present::
+
+   GRB_SCL_FILE_VERSION 1
+
+Data is organised into up to three named sections::
+
+   SECTION VARS
+   SECTION CONSTRS
+   SECTION QCONSTRS
+
+Each data line within a section has the form::
+
+   name  factor  lock_flag
+
+where ``name`` is the variable or constraint name as it appears in the model,
+``factor`` is a positive floating-point scaling factor, and ``lock_flag`` is
+either ``0`` (keep the factor fixed; the algorithm will not modify it) or
+``1`` (use the factor as a warmstart; the algorithm may adjust it further).
+
+All three sections are optional. A file may contain only a subset of the
+variables or constraints in the model; any object not listed defaults to an
+initial factor of 1.0.
+
+A minimal example::
+
+   # My custom scaling factors
+   GRB_SCL_FILE_VERSION 1
+
+   SECTION VARS
+   price    1e-3  0
+   quantity 1e+2  1
+
+   SECTION CONSTRS
+   budget   5e-1  0
+
+
+Writing Scaling Factors (Python API)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After calling :py:func:`~gurobi_modelanalyzer.scale_model`, use
+:py:meth:`ScaledModel.write_scaling` to export the computed factors:
+
+.. code-block:: python
+
+   import gurobipy as gp
+   import gurobi_modelanalyzer as gma
+
+   m = gp.read("model.mps")
+   m_scaled = gma.scale_model(m, method="equilibration")
+
+   # Save with lock_flag=0 (default): factors are fixed on re-import
+   m_scaled.write_scaling("model.scl")
+
+   # Save with lock_flag=1: factors act as a warmstart on re-import
+   m_scaled.write_scaling("model.scl", lock_factors=False)
+
+
+Reading Scaling Factors (Python API)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :py:func:`~gurobi_modelanalyzer.read_scaling_file` to load a ``.scl``
+file and apply its factors to a model before calling
+:py:func:`~gurobi_modelanalyzer.scale_model`:
+
+.. code-block:: python
+
+   import gurobipy as gp
+   from gurobi_modelanalyzer.scaling import scale_model, read_scaling_file
+
+   m = gp.read("model.mps")
+   read_scaling_file("model.scl", m)
+   m_scaled = scale_model(m, method="equilibration", init_scaling=2)
+
+The function sets ``_init_scaling`` and, where applicable, ``_scale = 0``
+directly on the model's variable and constraint objects. The ``init_scaling``
+parameter of :py:func:`~gurobi_modelanalyzer.scale_model` must be set to ``1``
+or ``2`` for these attributes to take effect (see
+`User-Provided Initial Scaling`_ above). Use ``init_scaling=2`` to run the
+algorithm as a warmstart on top of the loaded factors, or ``init_scaling=1``
+to apply them without any further iteration.
+
+Malformed lines and unrecognised names issue :class:`UserWarning` automatically
+via Python's :mod:`warnings` module. They can be suppressed with::
+
+   import warnings
+   warnings.filterwarnings("ignore", category=UserWarning)
+
+
+Round-Trip Example
+~~~~~~~~~~~~~~~~~~
+
+The following pattern scales a model, saves the result, and reproduces the
+same scaling on a later run:
+
+.. code-block:: python
+
+   import gurobipy as gp
+   import gurobi_modelanalyzer as gma
+   from gurobi_modelanalyzer.scaling import read_scaling_file
+
+   # --- First run: compute and save scaling ---
+   m = gp.read("model.mps")
+   m_scaled = gma.scale_model(m, method="equilibration")
+   m_scaled.write_scaling("model.scl")          # lock_flag=0 by default
+
+   # --- Later run: reproduce the exact same scaling ---
+   m2 = gp.read("model.mps")
+   read_scaling_file("model.scl", m2)
+   m2_scaled = gma.scale_model(m2, method="equilibration", init_scaling=2)
+
+Because the saved factors use ``lock_flag=0``, the algorithm cannot modify
+them further, and ``m2_scaled`` has the same coefficient matrix as ``m_scaled``.

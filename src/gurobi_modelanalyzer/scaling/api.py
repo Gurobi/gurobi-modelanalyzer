@@ -101,10 +101,150 @@ def _capture_model_stats(model: gp.Model) -> str:
     return output
 
 
+def read_scaling_file(path: str, model: gp.Model) -> None:
+    """
+    Parse a ``.scl`` scaling input file and apply the specified initial
+    scaling factors to the model's variables and constraints.
+
+    The function sets ``_init_scaling`` and, where applicable, ``_scale``
+    attributes directly on the Gurobi variable and constraint objects of
+    *model*.  After calling this function, pass ``init_scaling=2`` to
+    :func:`scale_model` to run the algorithm as a warmstart on top of the
+    loaded factors, or ``init_scaling=1`` to apply the factors without any
+    further iteration.
+
+    Malformed lines and unrecognised variable or constraint names emit
+    :class:`UserWarning` via Python's standard :mod:`warnings` machinery.
+    Callers can suppress or redirect them with
+    ``warnings.filterwarnings``.
+
+    File format
+    -----------
+    Lines starting with ``#`` and blank lines are ignored.  An optional
+    version header ``GRB_SCL_FILE_VERSION <n>`` may appear before the first
+    section.  Data sections are introduced by one of::
+
+        SECTION VARS
+        SECTION CONSTRS
+        SECTION QCONSTRS
+
+    Each data line within a section has the form::
+
+        name  factor  lock_flag
+
+    where *factor* is a positive float and *lock_flag* is ``0`` (keep the
+    factor fixed; no further refinement) or ``1`` (use as a warmstart; the
+    algorithm may still adjust the factor).
+
+    Parameters
+    ----------
+    path : str
+        Path to the ``.scl`` file.
+    model : gp.Model
+        Gurobi model whose objects will receive ``_init_scaling`` /
+        ``_scale`` attributes.
+
+    Examples
+    --------
+    Reproduce a previously saved scaling exactly::
+
+        import gurobipy as gp
+        from gurobi_modelanalyzer.scaling import scale_model, read_scaling_file
+
+        model = gp.read("model.mps")
+        read_scaling_file("model.scl", model)
+        scaled = scale_model(model, method="equilibration", init_scaling=2)
+
+    """
+    # stacklevel=2 makes the warning point to the caller of this function.
+    model.update()
+    var_by_name = {v.VarName: v for v in model.getVars()}
+    con_by_name = {c.ConstrName: c for c in model.getConstrs()}
+    qcon_by_name = {qc.QCName: qc for qc in model.getQConstrs()}
+
+    _VALID_SECTIONS = {"VARS", "CONSTRS", "QCONSTRS"}
+    section = None
+
+    def _warn(msg: str) -> None:
+        warnings.warn(f"{path}:{lineno}: {msg}", UserWarning, stacklevel=3)
+
+    with open(path, "r") as fh:
+        for lineno, raw in enumerate(fh, 1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.upper().startswith("GRB_SCL_FILE_VERSION"):
+                continue
+
+            if line.upper().startswith("SECTION"):
+                tokens = line.split()
+                if len(tokens) < 2:
+                    _warn(f"malformed SECTION header: {line!r}")
+                    continue
+                sec = tokens[1].upper()
+                if sec not in _VALID_SECTIONS:
+                    _warn(
+                        f"unknown section {tokens[1]!r} "
+                        "(expected VARS, CONSTRS, or QCONSTRS)"
+                    )
+                    section = None
+                else:
+                    section = sec
+                continue
+
+            parts = line.split()
+            if len(parts) != 3:
+                _warn(f"expected 'name factor lock_flag', got: {line!r}")
+                continue
+
+            name, factor_str, lock_str = parts
+
+            try:
+                factor = float(factor_str)
+            except ValueError:
+                _warn(f"invalid factor {factor_str!r} for {name!r}")
+                continue
+            if factor <= 0:
+                _warn(
+                    f"scaling factor must be positive, "
+                    f"got {factor_str} for {name!r}"
+                )
+                continue
+
+            if lock_str not in ("0", "1"):
+                _warn(f"lock_flag must be 0 or 1, got {lock_str!r} for {name!r}")
+                continue
+            lock = int(lock_str)
+
+            if section is None:
+                _warn(f"entry {name!r} appears before any SECTION header, skipping")
+                continue
+
+            if section == "VARS":
+                obj = var_by_name.get(name)
+                if obj is None:
+                    _warn(f"variable {name!r} not found in model")
+                    continue
+            elif section == "CONSTRS":
+                obj = con_by_name.get(name)
+                if obj is None:
+                    _warn(f"constraint {name!r} not found in model")
+                    continue
+            else:  # QCONSTRS
+                obj = qcon_by_name.get(name)
+                if obj is None:
+                    _warn(f"quadratic constraint {name!r} not found in model")
+                    continue
+
+            obj._init_scaling = factor
+            if lock == 0:
+                obj._scale = 0
+
+
 def scale_model(
     model: gp.Model,
     method: str,
-    scale_passes: int = 5,
+    scale_passes: int = 1,
     scale_conv_tol: float = 1e-4,
     scaling_lb: float = 1e-8,
     scaling_ub: float = 1e8,
@@ -205,6 +345,16 @@ def scale_model(
 
     # Ensure model is updated
     model.update()
+
+    # Reject models with general constraints (nonlinear, indicator, abs, min/max,
+    # piecewise-linear, etc.).  None of these constraint types are handled during
+    # scaling, so a model containing them cannot be meaningfully scaled.
+    if model.NumGenConstrs > 0:
+        raise ValueError(
+            f"Model Scaling does not support models with general constraints "
+            f"(including nonlinear constraints). "
+            f"The model has {model.NumGenConstrs} general constraint(s)."
+        )
 
     # Manage OutputFlag: temporarily enable if needed for logging
     original_output_flag = model.Params.OutputFlag
@@ -363,8 +513,8 @@ def scale_model(
 
     lb_vector_scaled = col_scaling_inv @ model_data.lb_vector
     ub_vector_scaled = col_scaling_inv @ model_data.ub_vector
-    var_names_scaled = [name + "_scaled" for name in model_data.var_names]
-    constr_names_scaled = [name + "_scaled" for name in model_data.constr_names]
+    var_names_scaled = list(model_data.var_names)
+    constr_names_scaled = list(model_data.constr_names)
 
     # Clean small coefficients
     scaled_matrix = _threshold_small_coefficients(scaled_matrix, value_threshold)
@@ -416,6 +566,16 @@ def scale_model(
     model_scaled._row_scaling = row_scaling
     model_scaled._original_model = model
 
+    # Stamp _scaling_factor on the original model's objects so users can
+    # access var.scaling_factor and constr.scaling_factor via the wrapper
+    # objects returned by getVarsUnscaled() / getConstrsUnscaled().
+    col_diag = col_scaling.diagonal()
+    row_diag = row_scaling.diagonal()
+    for var, factor in zip(gurobi_vars, col_diag):
+        var._scaling_factor = float(factor)
+    for constr, factor in zip(model.getConstrs(), row_diag):
+        constr._scaling_factor = float(factor)
+
     # Add quadratic objective term if present
     if q_matrix.nnz > 0:
         lin_objective = model_scaled.getObjective()
@@ -457,6 +617,8 @@ def scale_model(
         model_scaled.update()
         # Add scaling factors to scaled model
         model_scaled._quad_scaling_factors = quad_scaling_factors
+        for qconstr, factor in zip(qconstrs, quad_scaling_factors):
+            qconstr._scaling_factor = float(factor)
 
     # Compute total time and capture final statistics
     total_time = time.time() - total_start_time
