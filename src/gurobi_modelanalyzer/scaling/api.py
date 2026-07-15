@@ -205,10 +205,7 @@ def read_scaling_file(path: str, model: gp.Model) -> None:
                 _warn(f"invalid factor {factor_str!r} for {name!r}")
                 continue
             if factor <= 0:
-                _warn(
-                    f"scaling factor must be positive, "
-                    f"got {factor_str} for {name!r}"
-                )
+                _warn(f"scaling factor must be positive, got {factor_str} for {name!r}")
                 continue
 
             if lock_str not in ("0", "1"):

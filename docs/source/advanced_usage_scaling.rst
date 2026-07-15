@@ -415,7 +415,7 @@ algorithm as a warmstart on top of the loaded factors, or ``init_scaling=1``
 to apply them without any further iteration.
 
 Malformed lines and unrecognised names issue :class:`UserWarning` automatically
-via Python's :mod:`warnings` module. They can be suppressed with::
+via Python's ``warnings`` module. They can be suppressed with::
 
    import warnings
    warnings.filterwarnings("ignore", category=UserWarning)

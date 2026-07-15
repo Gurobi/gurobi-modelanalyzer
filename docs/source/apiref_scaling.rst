@@ -88,7 +88,7 @@ API Reference
    them without any further iteration.
 
    Malformed lines and unrecognised variable or constraint names issue
-   :class:`UserWarning` via Python's standard :mod:`warnings` machinery.
+   :class:`UserWarning` via Python's standard ``warnings`` machinery.
 
    See :ref:`ScalingFilesLabel` for a description of the ``.scl`` file format
    and usage examples.
@@ -97,7 +97,6 @@ API Reference
    :type path: str
    :param model: Gurobi model whose objects will receive ``_init_scaling`` /
                  ``_scale`` attributes.
-   :type model: gurobipy.Model
    :return: ``None``
 
 

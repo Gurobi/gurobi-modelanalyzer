@@ -435,6 +435,4 @@ class ScaledModel(gp.Model):
                 fh.write("SECTION QCONSTRS\n")
                 orig_qconstrs = self._original_model.getQConstrs()
                 for qconstr, factor in zip(orig_qconstrs, quad_factors):
-                    fh.write(
-                        f"{qconstr.QCName}  {factor:.15g}  {lock_flag}\n"
-                    )
+                    fh.write(f"{qconstr.QCName}  {factor:.15g}  {lock_flag}\n")

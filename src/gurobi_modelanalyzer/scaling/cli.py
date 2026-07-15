@@ -47,15 +47,9 @@ def _format_quality_stats(scaled_model):
     lines.append("")
     lines.append("Solution quality - unscaled model (original variable space)")
     lines.append(f"  Objective value         : {scaled_model.UnscObjVal:.10g}")
-    lines.append(
-        f"  Max constraint violation: {scaled_model.MaxUnscConstrVio:.6e}"
-    )
-    lines.append(
-        f"  Max bound violation     : {scaled_model.MaxUnscBoundVio:.6e}"
-    )
-    lines.append(
-        f"  Max total violation     : {scaled_model.MaxUnscVio:.6e}"
-    )
+    lines.append(f"  Max constraint violation: {scaled_model.MaxUnscConstrVio:.6e}")
+    lines.append(f"  Max bound violation     : {scaled_model.MaxUnscBoundVio:.6e}")
+    lines.append(f"  Max total violation     : {scaled_model.MaxUnscVio:.6e}")
     lines.append("")
 
     return "\n".join(lines) + "\n"
@@ -263,8 +257,7 @@ def main_cli():
                 scaled_model.setParam(key, _coerce_param_value(val))
             except gp.GurobiError as exc:
                 print(
-                    f"Warning: could not set Gurobi parameter "
-                    f"{key}={val!r}: {exc}",
+                    f"Warning: could not set Gurobi parameter {key}={val!r}: {exc}",
                     file=sys.stderr,
                 )
 
@@ -311,7 +304,5 @@ def main_cli():
         print("Scaled model is unbounded.", file=sys.stderr)
         sys.exit(3)
     elif opt_status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
-        print(
-            f"Solver finished with status code: {opt_status}", file=sys.stderr
-        )
+        print(f"Solver finished with status code: {opt_status}", file=sys.stderr)
         sys.exit(4)
