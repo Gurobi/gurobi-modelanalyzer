@@ -898,5 +898,118 @@ class TestMIQCPScaling(unittest.TestCase):
         ms.close()
 
 
+# ── power-of-2 scaling ────────────────────────────────────────────────────
+
+
+class TestPowerOf2Scaling(unittest.TestCase):
+    """Tests for the power_of_2=True option in scale_model()."""
+
+    def setUp(self):
+        self.env = _make_env()
+
+    def tearDown(self):
+        self.env.close()
+
+    def _is_power_of_2(self, factors):
+        """Return True if all entries of *factors* are exact powers of 2."""
+        logs = np.log2(factors)
+        return np.allclose(logs, np.round(logs))
+
+    # ── LP ────────────────────────────────────────────────────────────────
+
+    def test_lp_col_factors_are_powers_of_2(self):
+        m = _tiny_lp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        self.assertTrue(self._is_power_of_2(ms.ColScaling.diagonal()))
+        ms.close()
+        m.close()
+
+    def test_lp_row_factors_are_powers_of_2(self):
+        m = _tiny_lp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        self.assertTrue(self._is_power_of_2(ms.RowScaling.diagonal()))
+        ms.close()
+        m.close()
+
+    def test_lp_default_is_not_power_of_2(self):
+        """With power_of_2=False the factors are generally not powers of 2."""
+        m = _tiny_lp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0)
+        # afiro is well-scaled; use the tiny LP whose factors deviate from 2^n
+        factors = ms.ColScaling.diagonal()
+        logs = np.log2(np.maximum(factors, 1e-300))
+        # At least one factor should not be an exact power of 2
+        self.assertFalse(np.allclose(logs, np.round(logs)))
+        ms.close()
+        m.close()
+
+    def test_lp_scaled_model_is_solvable(self):
+        m = _tiny_lp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        ms.setParam("OutputFlag", 0)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    def test_lp_unscaled_solution_is_feasible(self):
+        m = _tiny_lp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        ms.setParam("OutputFlag", 0)
+        ms.optimize()
+        ms.computeUnscVio()
+        self.assertLess(ms.MaxUnscVio, 1e-6)
+        ms.close()
+        m.close()
+
+    # ── QP (quadratic objective) ──────────────────────────────────────────
+
+    def test_qp_col_factors_are_powers_of_2(self):
+        m = _tiny_qp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        self.assertTrue(self._is_power_of_2(ms.ColScaling.diagonal()))
+        ms.close()
+        m.close()
+
+    def test_qp_row_factors_are_powers_of_2(self):
+        m = _tiny_qp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        self.assertTrue(self._is_power_of_2(ms.RowScaling.diagonal()))
+        ms.close()
+        m.close()
+
+    def test_qp_scaled_model_is_solvable(self):
+        m = _tiny_qp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        ms.setParam("OutputFlag", 0)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    # ── QCP (quadratic constraints, linear objective) ─────────────────────
+
+    def test_qcp_col_factors_are_powers_of_2(self):
+        m = _tiny_qcp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        self.assertTrue(self._is_power_of_2(ms.ColScaling.diagonal()))
+        ms.close()
+        m.close()
+
+    def test_qcp_qconstr_row_factors_are_powers_of_2(self):
+        m = _tiny_qcp(self.env)
+        ms = scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=True)
+        factors = [sqc.scaling_factor for sqc in ms.getQConstrsUnscaled()]
+        self.assertTrue(self._is_power_of_2(np.array(factors)))
+        ms.close()
+        m.close()
+
+    def test_invalid_power_of_2_raises(self):
+        m = _tiny_lp(self.env)
+        with self.assertRaises(TypeError):
+            scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=1)
+        m.close()
+
+
 if __name__ == "__main__":
     unittest.main()

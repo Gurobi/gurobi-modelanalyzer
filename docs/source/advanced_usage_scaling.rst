@@ -192,6 +192,39 @@ the value of ``_init_scaling`` and is not modified by the algorithm. It is
 held constant throughout all passes, effectively locking that factor in place.
 
 
+Power-of-Two Scaling
+*********************
+
+Setting ``power_of_2=True`` rounds every final scaling factor to the nearest
+power of 2 before the scaled model is built:
+
+.. code-block:: python
+
+   m_scaled = gma.scale_model(m, method="equilibration", power_of_2=True)
+
+Powers of 2 have exact representations in IEEE 754 floating-point arithmetic.
+After rounding, multiplying or dividing a coefficient by its scaling factor
+introduces no additional round-off error, which can reduce cancellation in
+subsequent computations. The trade-off is that the coefficient ranges in the
+scaled model will not be quite as tight as without rounding.
+
+The rounding is applied only to the *final* factors, after all iterative
+passes have completed and after any ``init_scaling`` accumulation. The scaled
+coefficient matrices are recomputed from the original model data using the
+rounded factors, so the scaled model is always built consistently.
+
+Power-of-two scaling can be combined with any method and with
+``init_scaling``:
+
+.. code-block:: python
+
+   # Warmstart from a previous run, then round to powers of 2
+   read_scaling_file("model.scl", m)
+   m_scaled = gma.scale_model(
+       m, method="equilibration", init_scaling=2, power_of_2=True
+   )
+
+
 Accessing the Scaling Matrices
 *******************************
 

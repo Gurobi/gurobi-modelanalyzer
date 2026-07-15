@@ -382,6 +382,34 @@ def _scale_single_qconstr(
     return qc_scaled, q_scaled, sense, rhs_scaled, scaling_factor, name
 
 
+def _round_to_power_of_2(
+    matrix: scipy.sparse.dia_matrix,
+) -> scipy.sparse.dia_matrix:
+    """
+    Round each diagonal scaling factor to the nearest power of 2.
+
+    For a positive factor *f*, the rounded value is
+    :math:`2^{\\operatorname{round}(\\log_2 f)}`.
+    Exact powers of 2 have exact floating-point representations,
+    which eliminates round-off errors when the scaled coefficients
+    are later used in arithmetic.
+
+    Parameters
+    ----------
+    matrix : scipy.sparse.dia_matrix
+        Diagonal scaling matrix whose entries are to be rounded.
+
+    Returns
+    -------
+    scipy.sparse.dia_matrix
+        New diagonal matrix with each entry replaced by the nearest
+        power of 2.
+    """
+    diag = matrix.diagonal()
+    rounded_diag = 2.0 ** np.round(np.log2(np.maximum(diag, 1e-300)))
+    return scipy.sparse.diags(rounded_diag)
+
+
 def _threshold_small_coefficients(
     data: Union[scipy.sparse.spmatrix, np.ndarray],
     value_threshold: float = 1e-13,
@@ -602,6 +630,7 @@ def quad_equilibration(
     np.ndarray,
     scipy.sparse.csr_matrix,
     scipy.sparse.csr_matrix,
+    float,
     List[Dict],
 ]:
     """
@@ -647,6 +676,10 @@ def quad_equilibration(
         - scaled_obj_vector: The scaled linear objective vector
         - row_scaling_total: Cumulative row scaling matrix (diagonal)
         - col_scaling_total: Cumulative column scaling matrix (diagonal)
+        - obj_scaling_factor_total: Cumulative scalar objective scaling factor
+          accumulated across all passes. The full objective scaling applied
+          to the original data is
+          ``obj_scaling_factor_total * col_scaling_total @ obj_vector``.
         - iteration_logs: List of iteration information dictionaries
     """
     scaled_constr_matrix = constr_matrix.copy()
@@ -774,6 +807,7 @@ def quad_equilibration(
         scaled_obj_vector,
         row_scaling_total,
         col_scaling_total,
+        obj_scaling_factor_total,
         iteration_logs,
     )
 

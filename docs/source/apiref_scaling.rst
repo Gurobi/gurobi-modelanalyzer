@@ -6,7 +6,7 @@ API Reference
 
 .. _APIscale_modelLabel:
 
-.. py:function:: gurobi_modelanalyzer.scale_model(model, method, scale_passes=1, scale_conv_tol=1e-4, scaling_lb=1e-8, scaling_ub=1e8, value_threshold=1e-13, scaling_time_limit=inf, scaling_log="", scaling_log_to_console=1, init_scaling=0, env=None)
+.. py:function:: gurobi_modelanalyzer.scale_model(model, method, scale_passes=1, scale_conv_tol=1e-4, scaling_lb=1e-8, scaling_ub=1e8, value_threshold=1e-13, scaling_time_limit=inf, scaling_log="", scaling_log_to_console=1, init_scaling=0, power_of_2=False, env=None)
 
    Scale a Gurobi optimization model to improve numerical conditioning.
 
@@ -67,6 +67,13 @@ API Reference
                         are the product of the user-provided values and the
                         algorithm's output.
 
+   :param power_of_2: If ``True``, round each final scaling factor to the
+                      nearest power of 2 before building the scaled model.
+                      Powers of 2 have exact floating-point representations,
+                      so the scaled coefficients carry no round-off error from
+                      the scaling factors themselves. Applied after all scaling
+                      passes and after any ``init_scaling`` accumulation.
+                      Default: ``False``.
    :param env: Optional Gurobi environment (``gurobipy.Env``) to use for
                the scaled model.
    :return: A :ref:`ScaledModel <APIScaledModelLabel>` object containing the

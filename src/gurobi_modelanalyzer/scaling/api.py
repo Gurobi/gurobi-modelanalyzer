@@ -19,6 +19,7 @@ from .methods import (
     _print_scaling_log,
     _extract_range_stats,
     _scale_single_qconstr,
+    _round_to_power_of_2,
 )
 from .scaled_wrappers import ScaledModel
 
@@ -250,6 +251,7 @@ def scale_model(
     scaling_log: str = "",
     scaling_log_to_console: int = 1,
     init_scaling: int = 0,
+    power_of_2: bool = False,
     env: gp.Env = None,
 ) -> ScaledModel:
     """
@@ -300,6 +302,13 @@ def scale_model(
           the matrices, then run the iterative algorithm on top.
           The final scaling stored in the model is the product of the
           user-provided initial scaling and the algorithm scaling.
+    power_of_2 : bool, optional
+        If True, round each final scaling factor to the nearest power of 2
+        before building the scaled model (default: False). Powers of 2 have
+        exact floating-point representations, so the scaled coefficients
+        carry no round-off error from the scaling factors themselves. This
+        option is applied after all scaling passes and after any
+        init_scaling accumulation.
     env : gp.Env, optional
         Gurobi environment to use for the scaled model.
 
@@ -336,6 +345,8 @@ def scale_model(
     """
     if init_scaling not in (0, 1, 2):
         raise ValueError(f"init_scaling must be 0, 1, or 2 (got {init_scaling!r}).")
+    if not isinstance(power_of_2, bool):
+        raise TypeError(f"power_of_2 must be True or False (got {power_of_2!r}).")
 
     # Start timing
     total_start_time = time.time()
@@ -451,17 +462,22 @@ def scale_model(
             obj_vector_in = model_data.obj_vector
 
         if q_matrix.nnz == 0:  # LP / QCP: no quadratic objective
-            (scaled_matrix, row_scaling, col_scaling, iteration_logs) = (
-                _iterative_scaling(
-                    constr_matrix_in,
-                    cols_to_scale,
-                    rows_to_scale,
-                    scale_passes,
-                    scale_conv_tol,
-                    method,
-                    scaling_time_limit=scaling_time_limit,
-                )
+            (
+                scaled_matrix,
+                row_scaling,
+                col_scaling,
+                iteration_logs,
+            ) = _iterative_scaling(
+                constr_matrix_in,
+                cols_to_scale,
+                rows_to_scale,
+                scale_passes,
+                scale_conv_tol,
+                method,
+                scaling_time_limit=scaling_time_limit,
             )
+            # LP / QCP has no separate objective scaling factor
+            obj_scaling_factor_total = 1.0
             # Accumulate initial factors into the total for mode 2
             if init_scaling == 2:
                 col_scaling = col_init_scaling @ col_scaling
@@ -480,6 +496,7 @@ def scale_model(
                 obj_vector_scaled,
                 row_scaling,
                 col_scaling,
+                obj_scaling_factor_total,
                 iteration_logs,
             ) = quad_equilibration(
                 constr_matrix_in,
@@ -500,6 +517,23 @@ def scale_model(
 
     # Print separator before model building phase
     logger.info("Building scaled model...")
+
+    # Round final scaling factors to the nearest power of 2 if requested.
+    # The iterative algorithm's output is discarded and the scaled matrices
+    # are recomputed from the original data using the rounded factors, so
+    # the model is always built consistently.
+    # For QP models the separate objective scaling factor (obj_scaling_factor_total)
+    # returned by quad_equilibration is also rounded.
+    if power_of_2:
+        col_scaling = _round_to_power_of_2(col_scaling)
+        row_scaling = _round_to_power_of_2(row_scaling)
+        rounded_obj_sf = float(
+            2.0 ** np.round(np.log2(max(obj_scaling_factor_total, 1e-300)))
+        )
+        scaled_matrix = row_scaling @ model_data.constr_matrix @ col_scaling
+        obj_vector_scaled = rounded_obj_sf * (col_scaling @ model_data.obj_vector)
+        if q_matrix.nnz > 0:
+            scaled_q_matrix = rounded_obj_sf * (col_scaling @ q_matrix @ col_scaling)
 
     # Compute scaled data
     rhs_vector_scaled = row_scaling @ model_data.rhs_vector
@@ -597,6 +631,20 @@ def scale_model(
             )
             for qconstr in qconstrs
         ]
+
+        # Round QP-constraint row factors to nearest power of 2 if requested,
+        # and rescale the already-built constraint data accordingly.
+        if power_of_2:
+            rounded_results = []
+            for qc_s, q_s, sense, rhs_s, sf, name in qconstr_results:
+                rounded_sf = float(2.0 ** np.round(np.log2(max(float(sf), 1e-300))))
+                if rounded_sf != sf:
+                    ratio = rounded_sf / sf
+                    qc_s = qc_s * ratio
+                    q_s = q_s * ratio
+                    rhs_s = rhs_s * ratio
+                rounded_results.append((qc_s, q_s, sense, rhs_s, rounded_sf, name))
+            qconstr_results = rounded_results
 
         # Add scaled quadratic constraints to model
         quad_scaling_factors = []
