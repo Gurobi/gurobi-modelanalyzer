@@ -128,20 +128,22 @@ class TestScaleModelAPI(unittest.TestCase):
         self.assertGreater(ms.ScalingTime, 0.0)
         ms.close()
 
-    def test_variables_have_scaled_suffix(self):
+    def test_variable_names_match_original(self):
         ms = scale_model(
             self.model, "equilibration", env=self.env, scaling_log_to_console=0
         )
-        for v in ms.getVars():
-            self.assertTrue(v.VarName.endswith("_scaled"), v.VarName)
+        orig_names = [v.VarName for v in self.model.getVars()]
+        scaled_names = [v.VarName for v in ms.getVars()]
+        self.assertEqual(orig_names, scaled_names)
         ms.close()
 
-    def test_constraints_have_scaled_suffix(self):
+    def test_constraint_names_match_original(self):
         ms = scale_model(
             self.model, "equilibration", env=self.env, scaling_log_to_console=0
         )
-        for c in ms.getConstrs():
-            self.assertTrue(c.ConstrName.endswith("_scaled"), c.ConstrName)
+        orig_names = [c.ConstrName for c in self.model.getConstrs()]
+        scaled_names = [c.ConstrName for c in ms.getConstrs()]
+        self.assertEqual(orig_names, scaled_names)
         ms.close()
 
     def test_var_and_constr_counts_preserved(self):
@@ -193,6 +195,72 @@ class TestScaleModelAPI(unittest.TestCase):
 
 
 # ── post-solve unscaling ──────────────────────────────────────────────────
+
+
+class TestScalingFactorAttributes(unittest.TestCase):
+    """scaling_factor is accessible on original var/constr objects and ScaledVar."""
+
+    def setUp(self):
+        self.env = _make_env()
+        self.model = _tiny_lp(self.env)
+
+    def tearDown(self):
+        self.model.close()
+        self.env.close()
+
+    def _scale(self, **kwargs):
+        return scale_model(
+            self.model, "equilibration", scaling_log_to_console=0, **kwargs
+        )
+
+    def test_var_scaling_factor_matches_col_scaling_diagonal(self):
+        ms = self._scale()
+        ms.optimize()
+        col_diag = ms.ColScaling.diagonal()
+        for sv, expected in zip(ms.getVarsUnscaled(), col_diag):
+            self.assertAlmostEqual(sv.scaling_factor, float(expected))
+        ms.close()
+
+    def test_constr_scaling_factor_matches_row_scaling_diagonal(self):
+        ms = self._scale()
+        row_diag = ms.RowScaling.diagonal()
+        for sc, expected in zip(ms.getConstrsUnscaled(), row_diag):
+            self.assertAlmostEqual(sc.scaling_factor, float(expected))
+        ms.close()
+
+    def test_all_var_scaling_factors_are_positive(self):
+        ms = self._scale()
+        ms.optimize()
+        for sv in ms.getVarsUnscaled():
+            self.assertGreater(sv.scaling_factor, 0.0)
+        ms.close()
+
+    def test_all_constr_scaling_factors_are_positive(self):
+        ms = self._scale()
+        for sc in ms.getConstrsUnscaled():
+            self.assertGreater(sc.scaling_factor, 0.0)
+        ms.close()
+
+    def test_scaled_var_wrapper_scaling_factor_matches_original(self):
+        ms = self._scale()
+        ms.optimize()
+        col_diag = ms.ColScaling.diagonal()
+        for sv, expected in zip(ms.getVarsUnscaled(), col_diag):
+            self.assertAlmostEqual(sv.scaling_factor, float(expected))
+        ms.close()
+
+    def test_qconstr_scaling_factor_is_set(self):
+        """QP-constraint scaling factors are accessible via getQConstrsUnscaled()."""
+        env = _make_env()
+        try:
+            m = _tiny_qcp(env)
+            ms = scale_model(m, "equilibration", scaling_log_to_console=0)
+            for sqc in ms.getQConstrsUnscaled():
+                self.assertGreater(sqc.scaling_factor, 0.0)
+            ms.close()
+        finally:
+            m.close()
+            env.close()
 
 
 class TestScaleModelSolve(unittest.TestCase):

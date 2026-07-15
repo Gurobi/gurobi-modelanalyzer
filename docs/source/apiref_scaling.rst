@@ -6,7 +6,7 @@ API Reference
 
 .. _APIscale_modelLabel:
 
-.. py:function:: gurobi_modelanalyzer.scale_model(model, method, scale_passes=5, scale_conv_tol=1e-4, scaling_lb=1e-8, scaling_ub=1e8, value_threshold=1e-13, scaling_time_limit=inf, scaling_log="", scaling_log_to_console=1, init_scaling=0, env=None)
+.. py:function:: gurobi_modelanalyzer.scale_model(model, method, scale_passes=1, scale_conv_tol=1e-4, scaling_lb=1e-8, scaling_ub=1e8, value_threshold=1e-13, scaling_time_limit=inf, scaling_log="", scaling_log_to_console=1, init_scaling=0, env=None)
 
    Scale a Gurobi optimization model to improve numerical conditioning.
 
@@ -17,16 +17,24 @@ API Reference
    :param model: Required Gurobi model to scale.
    :param method: Scaling method to use. One of:
 
-                  ``'equilibration'``: iteratively scales rows and columns by their mean
-                  absolute value. Supports (MI)LP, (MI)QP, and (MI)QCP models.
+                  ``'equilibration'``: iteratively scales rows and columns to bring
+                  coefficient magnitudes to a similar range. Supports all model
+                  types: (MI)LP, (MI)QP, (MI)QCP, and (MI)QCQP.
 
-                  ``'geometric_mean'``: scales rows and columns by the geometric mean
-                  of their coefficient ranges. Supports (MI)LP and (MI)QCP models.
+                  ``'geometric_mean'``: scales rows and columns by
+                  :math:`1/\sqrt{a_i^{\max} \cdot a_i^{\min}}`, where
+                  :math:`a_i^{\max}` and :math:`a_i^{\min}` are the largest
+                  and smallest absolute nonzero values in the row or column.
+                  Supports (MI)LP and (MI)QCP models (linear objective only).
 
-                  ``'arithmetic_mean'``: scales rows and columns by the arithmetic
-                  mean of their absolute values. Supports (MI)LP and (MI)QCP models.
+                  ``'arithmetic_mean'``: scales rows and columns by the
+                  reciprocal of the mean absolute value of their nonzero entries.
+                  Supports (MI)LP and (MI)QCP models (linear objective only).
 
-   :param scale_passes: Maximum number of scaling iterations. Default: 5.
+                  See :ref:`ScalingAdvUsageLabel` for the model class taxonomy
+                  and a comparison of methods.
+
+   :param scale_passes: Maximum number of scaling iterations. Default: 1.
    :param scale_conv_tol: Convergence tolerance. Scaling stops early when the
                          maximum deviation of the scaling factors from 1 falls
                          below this threshold. Default: 1e-4.
@@ -63,6 +71,34 @@ API Reference
                the scaled model.
    :return: A :ref:`ScaledModel <APIScaledModelLabel>` object containing the
             scaled model with scaling information attached.
+
+
+.. _APIread_scaling_fileLabel:
+
+.. py:function:: gurobi_modelanalyzer.read_scaling_file(path, model)
+
+   Parse a ``.scl`` scaling input file and apply the specified initial scaling
+   factors to the Gurobi model's variables and constraints.
+
+   The function sets ``_init_scaling`` and, where applicable, ``_scale``
+   attributes directly on the ``gurobipy.Var`` and ``gurobipy.Constr`` objects
+   of *model*. After calling this function, pass ``init_scaling=2`` to
+   :py:func:`~gurobi_modelanalyzer.scale_model` to run the iterative algorithm
+   as a warmstart on top of the loaded factors, or ``init_scaling=1`` to apply
+   them without any further iteration.
+
+   Malformed lines and unrecognised variable or constraint names issue
+   :class:`UserWarning` via Python's standard :mod:`warnings` machinery.
+
+   See :ref:`ScalingFilesLabel` for a description of the ``.scl`` file format
+   and usage examples.
+
+   :param path: Path to the ``.scl`` scaling input file.
+   :type path: str
+   :param model: Gurobi model whose objects will receive ``_init_scaling`` /
+                 ``_scale`` attributes.
+   :type model: gurobipy.Model
+   :return: ``None``
 
 
 .. _APIScaledModelLabel:
@@ -115,6 +151,28 @@ unscaled solutions and computing violations in the original variable space.
    called after optimization. Result is stored in :py:attr:`ScaledModel.UnscObjVal`.
 
    :return: ``None`` (access the result via :py:attr:`ScaledModel.UnscObjVal`).
+
+.. py:method:: ScaledModel.write_scaling(path, lock_factors=True)
+
+   Export the scaling factors computed by :py:func:`~gurobi_modelanalyzer.scale_model`
+   to a ``.scl`` file. The file can later be passed to
+   :py:func:`~gurobi_modelanalyzer.read_scaling_file` or to ``gurobi_cls`` via
+   ``--scaling-file`` to reproduce or continue from the same scaling.
+
+   All variables and constraints are written, including those with a factor of
+   1.0. When ``lock_factors=True``, a factor of 1.0 with ``lock_flag=0`` locks
+   that object at the identity scaling and prevents the algorithm from modifying
+   it on re-import.
+
+   :param path: Output file path (conventionally with ``.scl`` extension).
+   :type path: str
+   :param lock_factors: If ``True`` (default), all entries are written with
+                        ``lock_flag=0``, meaning the factors are kept fixed
+                        when the file is re-imported and the algorithm cannot
+                        modify them. If ``False``, ``lock_flag=1`` is written
+                        so the factors act as a warmstart.
+   :type lock_factors: bool
+   :return: ``None``
 
 .. py:attribute:: ScaledModel.UnscObjVal
 
@@ -171,6 +229,11 @@ underlying variable.
    :math:`x_i = s_i \cdot y_i`, where :math:`s_i` is the column scaling
    factor and :math:`y_i` is the scaled solution value.
 
+.. py:attribute:: ScaledVar.scaling_factor
+
+   Column scaling factor :math:`s_i` applied to this variable by
+   :func:`~gurobi_modelanalyzer.scale_model`. Always positive.
+
 .. py:attribute:: ScaledVar.UnscBoundViolation
 
    Unscaled bound violation for this variable. Available after calling
@@ -192,3 +255,9 @@ Gurobi constraint attributes are forwarded to the underlying object.
 
    Unscaled constraint violation. Available after calling
    :py:meth:`ScaledModel.computeUnscVio`.
+
+.. py:attribute:: ScaledConstr.scaling_factor
+                  ScaledQConstr.scaling_factor
+
+   Row scaling factor applied to this constraint by
+   :func:`~gurobi_modelanalyzer.scale_model`. Always positive.

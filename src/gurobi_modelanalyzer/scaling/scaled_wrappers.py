@@ -28,6 +28,11 @@ class ScaledVar:
         """Unscaled variable value: x = s * y"""
         return self._col_scaling_factor * self._var.X
 
+    @property
+    def scaling_factor(self):
+        """Column scaling factor applied to this variable."""
+        return self._col_scaling_factor
+
     def __getattr__(self, name):
         """Forward all other attributes to the underlying Gurobi variable"""
         return getattr(self._var, name)
@@ -43,6 +48,11 @@ class _ScaledConstraintBase:
     def __init__(self, wrapped):
         self._wrapped = wrapped
         self._unsc_violation = None
+
+    @property
+    def scaling_factor(self):
+        """Row scaling factor applied to this constraint."""
+        return self._wrapped._scaling_factor
 
     @property
     def UnscViolation(self):
@@ -207,7 +217,7 @@ class ScaledModel(gp.Model):
 
         # Store bound violations in variable wrappers
         for i, var in enumerate(unscaled_vars):
-            var_name = var.VarName.replace("_scaled", "")
+            var_name = var.VarName
             var.UnscBoundViolation = self._bound_violations.get(var_name, 0.0)
 
         # Compute and store maximum violations
@@ -359,3 +369,72 @@ class ScaledModel(gp.Model):
         gp.Model or None
         """
         return self._original_model
+
+    def write_scaling(self, path: str, lock_factors: bool = True) -> None:
+        """
+        Export the scaling factors to a ``.scl`` file.
+
+        The file can be passed back to ``gurobi_cls`` via ``--scaling-file``
+        or to :func:`scale_model` after parsing with
+        :func:`~gurobi_modelanalyzer.scaling.cli._parse_scaling_file`, to
+        reproduce or continue from the same scaling.
+
+        All variables and constraints are written, including those with a
+        factor of 1.0. When ``lock_factors=True``, a factor of 1.0 with
+        ``lock_flag=0`` explicitly locks that object at the identity scaling
+        and prevents the algorithm from modifying it on re-import.
+
+        Parameters
+        ----------
+        path : str
+            Output file path (conventionally with ``.scl`` extension).
+        lock_factors : bool, optional
+            If ``True`` (default), all entries are written with
+            ``lock_flag = 0``, meaning the factors are kept fixed when the
+            file is re-imported and no further refinement is performed.
+            If ``False``, ``lock_flag = 1`` is written, so the factors act
+            as a warmstart and the scaling algorithm may adjust them further.
+        """
+        if self._col_scaling is None or self._row_scaling is None:
+            raise ValueError(
+                "No scaling information available. "
+                "ScaledModel must be created via scale_model()."
+            )
+        if self._original_model is None:
+            raise ValueError(
+                "Original model reference not available. "
+                "ScaledModel must be created via scale_model()."
+            )
+
+        lock_flag = 0 if lock_factors else 1
+        col_diag = self._col_scaling.diagonal()
+        row_diag = self._row_scaling.diagonal()
+
+        orig_vars = self._original_model.getVars()
+        orig_constrs = self._original_model.getConstrs()
+
+        quad_factors = getattr(self, "_quad_scaling_factors", None)
+        has_qconstrs = bool(quad_factors)
+
+        with open(path, "w") as fh:
+            fh.write("# Gurobi scaling output file\n")
+            fh.write("GRB_SCL_FILE_VERSION 1\n")
+            fh.write("\n")
+
+            fh.write("SECTION VARS\n")
+            for var, factor in zip(orig_vars, col_diag):
+                fh.write(f"{var.VarName}  {factor:.15g}  {lock_flag}\n")
+
+            fh.write("\n")
+            fh.write("SECTION CONSTRS\n")
+            for constr, factor in zip(orig_constrs, row_diag):
+                fh.write(f"{constr.ConstrName}  {factor:.15g}  {lock_flag}\n")
+
+            if has_qconstrs:
+                fh.write("\n")
+                fh.write("SECTION QCONSTRS\n")
+                orig_qconstrs = self._original_model.getQConstrs()
+                for qconstr, factor in zip(orig_qconstrs, quad_factors):
+                    fh.write(
+                        f"{qconstr.QCName}  {factor:.15g}  {lock_flag}\n"
+                    )

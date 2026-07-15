@@ -9,10 +9,9 @@ Introduction
 ************
 
 The Model Scaling module can be used to scale the coefficient matrix of a
-Gurobi model to improve numerical conditioning prior to solving. Poorly scaled
-models — those with large differences in coefficient magnitudes across rows or
-columns — can cause numerical instability in the solver, leading to inaccurate
-solutions or convergence issues.
+Gurobi model to improve numerical conditioning prior to solving. Poorly scaled models (those with large differences in coefficient magnitudes
+across rows or columns) can cause numerical instability in the solver, leading
+to inaccurate solutions or convergence issues.
 
 The module works by computing diagonal row and column scaling matrices
 :math:`D_r` and :math:`D_c` such that the transformed constraint matrix
@@ -25,14 +24,16 @@ solving, the original (unscaled) solution can be recovered via
 Three scaling methods are available:
 
 * **equilibration**: iteratively scales rows and columns to bring coefficient
-  magnitudes to a similar range. Supports (MI)LP, (MI)QP, and (MI)QCP models.
-  This is the recommended starting point and the only method supported for
-  models with a quadratic objective.
+  magnitudes to a similar range. Supports all model types: (MI)LP, (MI)QP,
+  (MI)QCP, and (MI)QCQP. This is the recommended starting point and the only
+  method that supports models with a quadratic objective.
 * **geometric_mean**: scales rows and columns by the reciprocal of the
-  geometric mean of their minimum and maximum absolute values.
-  Supports (MI)LP and (MI)QCP models.
+  square root of the product of the largest and smallest absolute nonzero
+  values in each row or column. Supports (MI)LP and (MI)QCP models
+  (linear objective only).
 * **arithmetic_mean**: scales both rows and columns by the reciprocal of
-  their mean absolute value. Supports (MI)LP and (MI)QCP models.
+  their mean absolute value. Supports (MI)LP and (MI)QCP models
+  (linear objective only).
 
 See the :doc:`advanced_usage_scaling` section for guidance on choosing between
 methods and controlling the scaling algorithm in detail.
@@ -56,8 +57,8 @@ model and a method name:
 
 :py:func:`~gurobi_modelanalyzer.scale_model` returns a fully constructed
 :ref:`ScaledModel <APIScaledModelLabel>` object. You can inspect it before
-solving — for example, examine the scaling factors, check coefficient ranges,
-or inspect variables and constraints — and call ``optimize()`` only when ready.
+calling ``optimize()``, for example by examining the scaling factors, checking
+coefficient ranges, or inspecting variables and constraints.
 
 The scaled model is solved in the transformed space. To retrieve the solution
 values in the original variable space:
@@ -81,7 +82,7 @@ constraint and bound violations in the original (unscaled) variable space:
    print(f"Max constraint violation: {m_scaled.MaxUnscConstrVio:.2e}")
    print(f"Max bound violation:      {m_scaled.MaxUnscBoundVio:.2e}")
 
-``MaxUnscVio`` is simply the larger of the two — equivalent to
+``MaxUnscVio`` is simply the larger of the two, equivalent to
 ``max(MaxUnscConstrVio, MaxUnscBoundVio)``.
 
 Individual violations per constraint are accessible via the wrappers returned

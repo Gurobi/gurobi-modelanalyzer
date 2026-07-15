@@ -151,6 +151,20 @@ def main_cli():
         action="store_true",
         help="Suppress scaling log output to the console.",
     )
+    parser.add_argument(
+        "--scaling-file",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Path to a .scl scaling input file specifying per-variable and "
+            "per-constraint initial scaling factors. When provided, the "
+            "scaling algorithm is run as a warmstart on top of the supplied "
+            "factors (init_scaling mode 2). File format: section-based text "
+            "with SECTION VARS / SECTION CONSTRS / SECTION QCONSTRS headers; "
+            "each data line is 'name  factor  lock_flag' where lock_flag is "
+            "0 (keep factor fixed) or 1 (use as warmstart, allow refinement)."
+        ),
+    )
 
     # ---- Positional: [Param=Value ...] model ----
     parser.add_argument(
@@ -191,6 +205,21 @@ def main_cli():
         print(f"Error reading model file '{model_path}': {exc}", file=sys.stderr)
         sys.exit(1)
 
+    # Apply scaling input file, if given
+    from gurobi_modelanalyzer.scaling import read_scaling_file
+
+    init_scaling_mode = 0
+    if parsed.scaling_file is not None:
+        try:
+            read_scaling_file(parsed.scaling_file, model)
+        except OSError as exc:
+            print(
+                f"Error reading scaling file '{parsed.scaling_file}': {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        init_scaling_mode = 2
+
     scaling_log_to_console = 0 if parsed.no_console_log else 1
 
     # Write the scaling log to a temp file so we can prepend it to the
@@ -214,7 +243,15 @@ def main_cli():
             scaling_time_limit=parsed.scaling_time_limit,
             scaling_log=temp_scaling_log,
             scaling_log_to_console=scaling_log_to_console,
+            init_scaling=init_scaling_mode,
         )
+
+        # Write scaling output file (locked factors, so the file can be
+        # used to reproduce the same scaling exactly on re-import).
+        model_stem = os.path.splitext(os.path.basename(model_path))[0]
+        scl_output_path = model_stem + ".scl"
+        scaled_model.write_scaling(scl_output_path, lock_factors=True)
+        print(f"Scaling factors written to: {scl_output_path}")
 
         # Apply Gurobi solver parameters to the scaled model.
         # Skip LogFile here; we set it explicitly below so Gurobi writes
