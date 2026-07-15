@@ -1,4 +1,4 @@
-__version__ = "v3.0.0a1"
+__version__ = "v3.0.0"
 
 from .common import _config
 
@@ -11,6 +11,6 @@ from .results_analyzer import (
 
 from .solcheck import SolCheck
 
-from .scaling import scale_model
+from .scaling import scale_model, read_scaling_file
 
 set_env = _config.set_env

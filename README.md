@@ -7,7 +7,9 @@ Gurobi Model Analyzer is an
 [open-source](https://gurobi-modelanalyzer.readthedocs.io/en/stable/license.html) python package that provides
 detailed analysis of model solutions and model characteristics.
 It consists of a results_analyzer module that calculates
-explanations of ill-conditioned basis matrices and a solcheck module that analysizes a given solution.
+explanations of ill-conditioned basis matrices, a solcheck module that analyzes
+a given solution, and a scaling module that scales optimization models to improve
+numerical conditioning prior to solving.
 
 
 # Documentation
@@ -120,6 +122,50 @@ for c in m.getConstrs():
     if abs(c._Violation) > 0.0001:
         print(f"{c.ConstrName}: RHS: {c.RHS}, Violation: {c._Violation}")
 ```
+
+### Using the model scaling module
+
+Scale a poorly conditioned model to improve numerical stability before solving:
+
+```python
+import gurobipy as gp
+import gurobi_modelanalyzer as gma
+
+m = gp.read("mymodel.mps")
+m_scaled = gma.scale_model(m, method="equilibration")
+
+m_scaled.optimize()
+
+# Retrieve the solution in the original (unscaled) variable space
+for var in m_scaled.getVarsUnscaled():
+    print(f"{var.VarName}: {var.Xunsc:.6e}")
+
+# Check constraint and bound violations in the original space
+m_scaled.computeUnscVio()
+print(f"Max constraint violation: {m_scaled.MaxUnscConstrVio:.2e}")
+print(f"Max bound violation:      {m_scaled.MaxUnscBoundVio:.2e}")
+```
+
+Save the scaling factors to a file and reuse them in a later run:
+
+```python
+m_scaled.write_scaling("mymodel.scl")
+
+# Later: reload and reproduce the exact same scaling
+m2 = gp.read("mymodel.mps")
+gma.read_scaling_file("mymodel.scl", m2)
+m2_scaled = gma.scale_model(m2, method="equilibration", init_scaling=2)
+```
+
+The package also provides the `gurobi_cls` command-line tool, which scales and
+solves a model in one step (analogous to Gurobi's `gurobi_cl`):
+
+```console
+gurobi_cls --method equilibration TimeLimit=120 mymodel.mps
+```
+
+For more details see the
+[Model Scaling documentation](https://gurobi-modelanalyzer.readthedocs.io/en/latest/).
 
 
 # Getting a Gurobi License
