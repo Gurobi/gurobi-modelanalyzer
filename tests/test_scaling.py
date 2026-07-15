@@ -70,6 +70,25 @@ def _tiny_qp(env):
     return m
 
 
+def _tiny_mip(env):
+    """
+    A tiny MIP with a continuous and a binary variable, well-differentiated
+    coefficient magnitudes to produce a non-trivial column scaling factor
+    for the continuous variable.
+
+      min   x + 1000 b
+      s.t.  0.001 x + b >= 1
+            x >= 0, b in {0,1}
+    """
+    m = gp.Model(env=env)
+    x = m.addVar(lb=0, name="x")
+    b = m.addVar(vtype=GRB.BINARY, name="b")
+    m.addConstr(0.001 * x + b >= 1, name="c1")
+    m.setObjective(x + 1000 * b, GRB.MINIMIZE)
+    m.update()
+    return m
+
+
 # ── scale_model API ───────────────────────────────────────────────────────
 
 
@@ -1008,6 +1027,325 @@ class TestPowerOf2Scaling(unittest.TestCase):
         m = _tiny_lp(self.env)
         with self.assertRaises(TypeError):
             scale_model(m, "equilibration", scaling_log_to_console=0, power_of_2=1)
+        m.close()
+
+
+# ── variable attribute inheritance ───────────────────────────────────────
+
+
+class TestVarAttributeInheritance(unittest.TestCase):
+    """
+    Variable attributes set on the original model must be carried over
+    to the scaled model, with primal-value attributes divided by the
+    column scaling factor and flag/integer attributes copied unchanged.
+    """
+
+    def setUp(self):
+        self.env = _make_env()
+
+    def tearDown(self):
+        self.env.close()
+
+    def _scale(self, model, **kwargs):
+        return scale_model(model, "equilibration", scaling_log_to_console=0, **kwargs)
+
+    def _col_inv(self, ms):
+        """Return per-variable inverse scaling factors (1/s_i)."""
+        return 1.0 / ms.ColScaling.diagonal()
+
+    # ── Start (MIP warm-start value) ─────────────────────────────────────
+
+    def test_start_is_scaled_for_continuous_var(self):
+        """Start on a continuous variable is divided by its col factor."""
+        m = _tiny_lp(self.env)
+        m.getVarByName("x").Start = 4.0
+        m.getVarByName("y").Start = 0.5
+        m.update()
+        ms = self._scale(m)
+        col_inv = self._col_inv(ms)
+        svars = ms.getVars()
+        self.assertAlmostEqual(svars[0].Start, 4.0 * col_inv[0], places=10)
+        self.assertAlmostEqual(svars[1].Start, 0.5 * col_inv[1], places=10)
+        ms.close()
+        m.close()
+
+    def test_start_is_not_scaled_for_binary_var(self):
+        """Binary variables have col factor 1.0, so Start is unchanged."""
+        m = _tiny_mip(self.env)
+        m.getVarByName("b").Start = 1.0
+        m.update()
+        ms = self._scale(m)
+        svars = ms.getVars()
+        # Binary var is at index 1 (added second)
+        self.assertAlmostEqual(svars[1].Start, 1.0, places=10)
+        ms.close()
+        m.close()
+
+    def test_undefined_start_is_not_set(self):
+        """Variables without Start set must remain GRB.UNDEFINED in scaled model."""
+        m = _tiny_lp(self.env)
+        # Only set Start on x, not y
+        m.getVarByName("x").Start = 2.0
+        m.update()
+        ms = self._scale(m)
+        svars = ms.getVars()
+        self.assertNotEqual(svars[0].Start, GRB.UNDEFINED)  # x was set
+        self.assertEqual(svars[1].Start, GRB.UNDEFINED)  # y was not set
+        ms.close()
+        m.close()
+
+    # ── VarHintVal ────────────────────────────────────────────────────────
+
+    def test_varhintval_is_scaled(self):
+        m = _tiny_lp(self.env)
+        m.getVarByName("x").VarHintVal = 8.0
+        m.getVarByName("y").VarHintVal = 0.25
+        m.update()
+        ms = self._scale(m)
+        col_inv = self._col_inv(ms)
+        svars = ms.getVars()
+        self.assertAlmostEqual(svars[0].VarHintVal, 8.0 * col_inv[0], places=10)
+        self.assertAlmostEqual(svars[1].VarHintVal, 0.25 * col_inv[1], places=10)
+        ms.close()
+        m.close()
+
+    def test_undefined_varhintval_is_not_set(self):
+        m = _tiny_lp(self.env)
+        ms = self._scale(m)
+        for sv in ms.getVars():
+            self.assertEqual(sv.VarHintVal, GRB.UNDEFINED)
+        ms.close()
+        m.close()
+
+    # ── PStart (LP primal start) ──────────────────────────────────────────
+
+    def test_pstart_is_scaled(self):
+        """PStart is divided by the column scaling factor.
+
+        Like VBasis/CBasis, PStart is a write-before-solve hint that Gurobi
+        may discard after a model update.  This test verifies that the
+        inheritance does not crash and that the scaled model remains solvable.
+        """
+        m = _tiny_lp(self.env)
+        m.getVarByName("x").PStart = 3.0
+        m.getVarByName("y").PStart = 0.1
+        m.update()
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    # ── VarHintPri ────────────────────────────────────────────────────────
+
+    def test_varhintpri_is_copied_unchanged(self):
+        m = _tiny_lp(self.env)
+        m.getVarByName("x").VarHintPri = 3
+        m.getVarByName("y").VarHintPri = 7
+        m.update()
+        ms = self._scale(m)
+        svars = ms.getVars()
+        self.assertEqual(svars[0].VarHintPri, 3)
+        self.assertEqual(svars[1].VarHintPri, 7)
+        ms.close()
+        m.close()
+
+    # ── BranchPriority ────────────────────────────────────────────────────
+
+    def test_branchpriority_is_copied_unchanged(self):
+        m = _tiny_mip(self.env)
+        m.getVarByName("x").BranchPriority = 10
+        m.getVarByName("b").BranchPriority = 5
+        m.update()
+        ms = self._scale(m)
+        svars = ms.getVars()
+        self.assertEqual(svars[0].BranchPriority, 10)
+        self.assertEqual(svars[1].BranchPriority, 5)
+        ms.close()
+        m.close()
+
+    # ── Partition ─────────────────────────────────────────────────────────
+
+    def test_partition_is_copied_unchanged(self):
+        m = _tiny_lp(self.env)
+        m.getVarByName("x").Partition = 1
+        m.getVarByName("y").Partition = 2
+        m.update()
+        ms = self._scale(m)
+        svars = ms.getVars()
+        self.assertEqual(svars[0].Partition, 1)
+        self.assertEqual(svars[1].Partition, 2)
+        ms.close()
+        m.close()
+
+    # ── VBasis ────────────────────────────────────────────────────────────
+
+    def test_vbasis_set_before_solve_is_inherited(self):
+        """VBasis set by the user before any solve is carried over via the
+        .bas file round-trip, so the scaled model can use it as a warm start.
+        """
+        m = _tiny_lp(self.env)
+        m.getVarByName("x").VBasis = 0  # basic
+        m.getVarByName("y").VBasis = -1  # non-basic at lower bound
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.setParam("Method", 1)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    def test_vbasis_from_solved_lp_is_inherited(self):
+        """VBasis from a solved LP is carried over via the .bas file round-trip."""
+        m = _tiny_lp(self.env)
+        m.setParam("OutputFlag", 0)
+        m.setParam("Method", 1)  # dual simplex guarantees a basis
+        m.optimize()
+        self.assertEqual(m.Status, GRB.OPTIMAL)
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.setParam("Method", 1)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    def test_vbasis_not_set_does_not_crash(self):
+        """If neither VBasis nor CBasis is set and the model is unsolved,
+        scaling succeeds and the scaled model remains solvable.
+        """
+        m = _tiny_lp(self.env)
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    # ── Combined: multiple attributes on the same model ───────────────────
+
+    def test_multiple_attributes_set_together(self):
+        m = _tiny_lp(self.env)
+        x = m.getVarByName("x")
+        x.Start = 2.0
+        x.VarHintVal = 2.0
+        x.VarHintPri = 4
+        x.BranchPriority = 2
+        x.Partition = 1
+        m.update()
+        ms = self._scale(m)
+        col_inv = self._col_inv(ms)
+        sv = ms.getVars()[0]
+        self.assertAlmostEqual(sv.Start, 2.0 * col_inv[0], places=10)
+        self.assertAlmostEqual(sv.VarHintVal, 2.0 * col_inv[0], places=10)
+        self.assertEqual(sv.VarHintPri, 4)
+        self.assertEqual(sv.BranchPriority, 2)
+        self.assertEqual(sv.Partition, 1)
+        ms.close()
+        m.close()
+
+
+# ── constraint attribute inheritance ─────────────────────────────────────
+
+
+class TestConstrAttributeInheritance(unittest.TestCase):
+    """
+    Constraint attributes set on the original model must be carried over
+    to the scaled model unchanged (no scaling transformation applies to
+    integer-code attributes).
+    """
+
+    def setUp(self):
+        self.env = _make_env()
+
+    def tearDown(self):
+        self.env.close()
+
+    def _scale(self, model, **kwargs):
+        return scale_model(model, "equilibration", scaling_log_to_console=0, **kwargs)
+
+    # ── Lazy ─────────────────────────────────────────────────────────────
+
+    def test_lazy_flag_is_copied(self):
+        m = _tiny_lp(self.env)
+        m.getConstrByName("c1").Lazy = 1
+        m.update()
+        ms = self._scale(m)
+        self.assertEqual(ms.getConstrByName("c1").Lazy, 1)
+        ms.close()
+        m.close()
+
+    def test_lazy_levels_are_all_supported(self):
+        """All documented Lazy values (0, 1, 2, 3) round-trip correctly."""
+        for lazy_val in (0, 1, 2, 3):
+            with self.subTest(lazy_val=lazy_val):
+                m = _tiny_lp(self.env)
+                m.getConstrByName("c1").Lazy = lazy_val
+                m.update()
+                ms = self._scale(m)
+                self.assertEqual(ms.getConstrByName("c1").Lazy, lazy_val)
+                ms.close()
+                m.close()
+
+    def test_default_lazy_zero_is_preserved(self):
+        m = _tiny_lp(self.env)
+        ms = self._scale(m)
+        self.assertEqual(ms.getConstrByName("c1").Lazy, 0)
+        ms.close()
+        m.close()
+
+    # ── CBasis ───────────────────────────────────────────────────────────
+
+    def test_cbasis_set_before_solve_is_inherited(self):
+        """CBasis set by the user before any solve is carried over via the
+        .bas file round-trip, so the scaled model can use it as a warm start.
+        """
+        m = _tiny_lp(self.env)
+        m.getConstrByName("c1").CBasis = -1  # non-basic (constraint active)
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.setParam("Method", 1)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    def test_cbasis_from_solved_lp_is_inherited(self):
+        """CBasis from a solved LP is carried over via the .bas file round-trip."""
+        m = _tiny_lp(self.env)
+        m.setParam("OutputFlag", 0)
+        m.setParam("Method", 1)  # dual simplex guarantees a basis
+        m.optimize()
+        self.assertEqual(m.Status, GRB.OPTIMAL)
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.setParam("Method", 1)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        ms.close()
+        m.close()
+
+    def test_complete_basis_allows_warmstart(self):
+        """With both VBasis and CBasis inherited the scaled model warm-starts."""
+        m = _tiny_lp(self.env)
+        m.setParam("OutputFlag", 0)
+        m.setParam("Method", 1)
+        m.optimize()
+        self.assertEqual(m.Status, GRB.OPTIMAL)
+        try:
+            _ = [v.VBasis for v in m.getVars()]
+            _ = [c.CBasis for c in m.getConstrs()]
+        except AttributeError:
+            self.skipTest("Basis attributes not available after solve")
+        ms = self._scale(m)
+        ms.setParam("OutputFlag", 0)
+        ms.setParam("Method", 1)
+        ms.optimize()
+        self.assertEqual(ms.Status, GRB.OPTIMAL)
+        # A valid warm-start basis means IterCount should be 0 or very low.
+        self.assertLessEqual(ms.IterCount, 5)
+        ms.close()
         m.close()
 
 

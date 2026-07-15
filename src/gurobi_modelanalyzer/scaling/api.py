@@ -1,7 +1,9 @@
 import gurobipy as gp
 from gurobipy import GRB
+import os
 import scipy.sparse
 import numpy as np
+import tempfile
 from typing import List, Tuple, Dict, Union
 import warnings
 import time
@@ -237,6 +239,125 @@ def read_scaling_file(path: str, model: gp.Model) -> None:
             obj._init_scaling = factor
             if lock == 0:
                 obj._scale = 0
+
+
+def _inherit_var_attributes(
+    original_model: gp.Model,
+    original_vars: List[gp.Var],
+    scaled_vars: List[gp.Var],
+    col_inv_diag: np.ndarray,
+) -> None:
+    """
+    Copy variable attributes from the original model to the scaled model.
+
+    The scaled variable :math:`y_i` relates to the original variable
+    :math:`x_i` by :math:`x_i = s_i y_i`, so any attribute that
+    represents a primal value must be divided by :math:`s_i` to obtain the
+    equivalent value in the scaled space.
+
+    Scaled (divided by column factor)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    - ``Start``       – MIP start value
+    - ``VarHintVal``  – variable hint value
+    - ``PStart``      – primal start value for LP simplex
+
+    Copied unchanged (flags / integer codes)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    - ``VarHintPri``      – variable hint priority
+    - ``BranchPriority``  – branching priority
+    - ``Partition``       – partition number for sub-MIP heuristic
+    - ``VBasis``          – simplex basis status
+
+    Attributes that are not set on the original model (``GRB.UNDEFINED``
+    for primal values, or inaccessible) are silently skipped.
+    """
+    # --- Primal-value attributes: divide by column scaling factor -----------
+    for attr in ("Start", "VarHintVal", "PStart"):
+        for i, (orig_var, scaled_var) in enumerate(zip(original_vars, scaled_vars)):
+            try:
+                val = orig_var.getAttr(attr)
+            except (gp.GurobiError, AttributeError):
+                continue
+            if val != GRB.UNDEFINED:
+                try:
+                    scaled_var.setAttr(attr, float(val) * col_inv_diag[i])
+                except (gp.GurobiError, AttributeError):
+                    pass
+
+    # --- Flag / integer-code attributes: copy unchanged ---------------------
+    for attr in ("VarHintPri", "BranchPriority", "Partition"):
+        for i, (orig_var, scaled_var) in enumerate(zip(original_vars, scaled_vars)):
+            try:
+                val = orig_var.getAttr(attr)
+            except (gp.GurobiError, AttributeError):
+                continue
+            try:
+                scaled_var.setAttr(attr, val)
+            except (gp.GurobiError, AttributeError):
+                pass
+
+
+def _inherit_constr_attributes(
+    original_model: gp.Model,
+    original_constrs: List[gp.Constr],
+    scaled_constrs: List[gp.Constr],
+) -> None:
+    """
+    Copy linear constraint attributes from the original to the scaled model.
+
+    Copied unchanged
+    ~~~~~~~~~~~~~~~~~
+    - ``Lazy`` – lazy constraint flag (0 = not lazy; 1, 2, 3 = laziness
+      levels; -1 = internal use).
+
+    The simplex basis attribute ``CBasis`` is handled separately by
+    :func:`_inherit_basis`, which supports both pre-solve and post-solve cases.
+    """
+    for attr in ("Lazy",):
+        for orig_constr, scaled_constr in zip(original_constrs, scaled_constrs):
+            try:
+                val = orig_constr.getAttr(attr)
+            except (gp.GurobiError, AttributeError):
+                continue
+            try:
+                scaled_constr.setAttr(attr, val)
+            except (gp.GurobiError, AttributeError):
+                pass
+
+
+def _inherit_basis(
+    original_model: gp.Model,
+    model_scaled: gp.Model,
+) -> None:
+    """
+    Transfer the simplex basis from *original_model* to *model_scaled* via a
+    temporary ``.bas`` file.
+
+    This approach handles two scenarios:
+
+    1. The original model has been solved with simplex and the basis is
+       available as a post-solve result.
+    2. The user has set ``VBasis`` / ``CBasis`` manually before any solve
+       to specify a warm-start basis. Gurobi does not expose these attributes
+       for reading before a basic solution exists, but ``model.write('.bas')``
+       captures them nonetheless.
+
+    The scaled model preserves variable and constraint names, so the ``.bas``
+    file from the original model loads correctly into the scaled model.
+    If no basis information is present the function is a silent no-op.
+    """
+    bas_fd, bas_path = tempfile.mkstemp(suffix=".bas")
+    os.close(bas_fd)
+    try:
+        original_model.write(bas_path)
+        model_scaled.read(bas_path)
+    except Exception:
+        pass
+    finally:
+        try:
+            os.unlink(bas_path)
+        except OSError:
+            pass
 
 
 def scale_model(
@@ -606,6 +727,13 @@ def scale_model(
         var._scaling_factor = float(factor)
     for constr, factor in zip(model.getConstrs(), row_diag):
         constr._scaling_factor = float(factor)
+
+    # Inherit variable and constraint attributes (start values, hints,
+    # priorities, basis statuses, lazy flags, …)
+    _inherit_var_attributes(model, gurobi_vars, vars_list, 1.0 / col_diag_safe)
+    _inherit_constr_attributes(model, model.getConstrs(), model_scaled.getConstrs())
+    _inherit_basis(model, model_scaled)
+    model_scaled.update()
 
     # Add quadratic objective term if present
     if q_matrix.nnz > 0:

@@ -125,6 +125,32 @@ Scaling Options
    Suppress the scaling log on the console. The log is still written to the
    log file.
 
+.. option:: --input-file PATH
+
+   Load an additional input file into the model after reading it. The file
+   type is inferred from the extension; any format accepted by
+   ``gurobipy.Model.read()`` is supported, for example:
+
+   * ``.mst`` — MIP start values
+   * ``.attr`` — attribute file (MIP starts, hints, priorities, basis, …)
+   * ``.bas`` — simplex basis
+   * ``.ord`` — variable branching priorities
+   * ``.prm`` — parameter settings
+
+   The option may be repeated to load multiple files in order:
+
+   .. code-block:: none
+
+      gurobi_cls --input-file start.mst --input-file hints.attr model.mps
+
+   .. note::
+
+      The Gurobi solver parameter ``InputFile=`` that works with the native
+      ``gurobi_cl`` executable has **no effect** in ``gurobi_cls``. This is
+      because ``gurobi_cls`` calls Gurobi through the Python API
+      (``gurobipy``), which does not implement the ``InputFile`` parameter.
+      Use ``--input-file`` instead.
+
 
 Exit Codes
 **********

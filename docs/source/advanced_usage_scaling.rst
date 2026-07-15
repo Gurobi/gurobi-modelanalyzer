@@ -10,8 +10,9 @@ The :ref:`ScalingQSGuideLabel` covers the basic workflow for scaling a model
 and recovering the unscaled solution. This section describes the more advanced
 capabilities of the Model Scaling module: choosing between scaling methods,
 controlling convergence, opting out selected variables or constraints,
-providing user-defined initial scaling factors, accessing the scaling matrices
-directly, and computing the unscaled objective value.
+providing user-defined initial scaling factors, inheriting variable and
+constraint attributes, accessing the scaling matrices directly, and computing
+the unscaled objective value.
 
 
 Choosing a Scaling Method
@@ -190,6 +191,90 @@ When both ``_init_scaling`` and ``_scale = 0`` are set on the same variable or
 constraint, ``_init_scaling`` takes priority. The scaling factor is fixed at
 the value of ``_init_scaling`` and is not modified by the algorithm. It is
 held constant throughout all passes, effectively locking that factor in place.
+
+
+Inherited Variable and Constraint Attributes
+*********************************************
+
+:py:func:`~gurobi_modelanalyzer.scale_model` automatically transfers selected
+attributes from the original model's variables and constraints to their
+counterparts in the scaled model.
+
+Attributes that represent primal values are divided by the column scaling
+factor :math:`s_i` (since :math:`x_i = s_i y_i`, a value in the original
+space becomes :math:`v / s_i` in the scaled space). All other attributes are
+copied without modification.
+
+.. list-table:: Variable attributes
+   :header-rows: 1
+   :widths: 22 15 63
+
+   * - Attribute
+     - Treatment
+     - Description
+   * - ``Start``
+     - scaled
+     - MIP warm-start value.
+   * - ``VarHintVal``
+     - scaled
+     - Variable hint value for the MIP solver.
+   * - ``PStart``
+     - scaled
+     - Primal start value for LP simplex.
+   * - ``VarHintPri``
+     - copied
+     - Variable hint priority.
+   * - ``BranchPriority``
+     - copied
+     - Branching priority for the MIP solver.
+   * - ``Partition``
+     - copied
+     - Partition number for the sub-MIP heuristic.
+   * - ``VBasis``
+     - copied
+     - Simplex basis status. Works both when set by the user before a solve
+       and when read from a solved model.
+
+.. list-table:: Constraint attributes
+   :header-rows: 1
+   :widths: 22 15 63
+
+   * - Attribute
+     - Treatment
+     - Description
+   * - ``Lazy``
+     - copied
+     - Lazy constraint flag (0 = not lazy; 1, 2, 3 = laziness levels).
+   * - ``CBasis``
+     - copied
+     - Simplex basis status of the constraint's slack variable. Works both
+       when set by the user before a solve and when read from a solved model.
+
+Attributes that are not set on the original model are silently skipped.
+``VBasis`` and ``CBasis`` are handled via a temporary ``.bas`` file, which
+captures both user-specified warm-start bases (set before any solve) and
+post-solve bases. Because Gurobi only exposes these attributes for reading
+after a basic solution exists, the file-based approach is the only reliable
+way to transfer them in both scenarios.
+
+**Simplex warm start.** A complete simplex warm start requires both ``VBasis``
+(variables) and ``CBasis`` (constraints). When both are available from a prior
+solve of the original model, they are inherited by the scaled model and allow
+the simplex algorithm to start from the corresponding basis:
+
+.. code-block:: python
+
+   import gurobipy as gp
+   import gurobi_modelanalyzer as gma
+
+   m = gp.read("model.mps")
+   m.setParam("Method", 1)  # dual simplex
+   m.optimize()
+
+   # Scale: VBasis and CBasis are automatically inherited
+   m_scaled = gma.scale_model(m, method="equilibration")
+   m_scaled.setParam("Method", 1)
+   m_scaled.optimize()  # starts from the inherited simplex basis
 
 
 Power-of-Two Scaling

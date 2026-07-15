@@ -77,7 +77,16 @@ API Reference
    :param env: Optional Gurobi environment (``gurobipy.Env``) to use for
                the scaled model.
    :return: A :ref:`ScaledModel <APIScaledModelLabel>` object containing the
-            scaled model with scaling information attached.
+            scaled model with scaling information attached. Selected variable
+            and constraint attributes (start values, hints, priorities, basis
+            statuses, lazy flags) are automatically inherited from the original
+            model; see :ref:`ScalingAdvUsageLabel` for the full list.
+   :raises ValueError: If the model contains general constraints (nonlinear,
+                       indicator, abs, min/max, piecewise-linear, etc.).
+                       These constraint types are not supported by the scaling
+                       module.
+   :raises ValueError: If *init_scaling* is not 0, 1, or 2.
+   :raises TypeError: If *power_of_2* is not a boolean.
 
 
 .. _APIread_scaling_fileLabel:

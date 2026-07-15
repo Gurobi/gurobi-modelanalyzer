@@ -170,6 +170,20 @@ def main_cli():
             "(e.g. TimeLimit=60 Presolve=2), followed by the model file path."
         ),
     )
+    parser.add_argument(
+        "--input-file",
+        metavar="PATH",
+        action="append",
+        default=[],
+        help=(
+            "Additional input file to load into the model after reading it "
+            "(e.g. a MIP start .mst, attribute file .attr, basis .bas, or "
+            "priority file .ord). May be specified multiple times. "
+            "Equivalent to calling model.read(PATH) for each file in order. "
+            "Note: the Gurobi parameter 'InputFile=' does not work in "
+            "gurobi_cls; use this flag instead."
+        ),
+    )
 
     parsed = parser.parse_args()
 
@@ -198,6 +212,25 @@ def main_cli():
     except Exception as exc:
         print(f"Error reading model file '{model_path}': {exc}", file=sys.stderr)
         sys.exit(1)
+
+    # Warn if the user passed InputFile= as a Param=Value argument — it has
+    # no effect in gurobi_cls (use --input-file instead).
+    inputfile_key = next((k for k in gurobi_params if k.lower() == "inputfile"), None)
+    if inputfile_key is not None:
+        print(
+            "Warning: 'InputFile=' has no effect in gurobi_cls. "
+            "Use --input-file to load additional files (MIP starts, "
+            "attribute files, etc.).",
+            file=sys.stderr,
+        )
+
+    # Load additional input files (MIP starts, bases, attribute files, …)
+    for path in parsed.input_file:
+        try:
+            model.read(path)
+        except Exception as exc:
+            print(f"Error reading input file '{path}': {exc}", file=sys.stderr)
+            sys.exit(1)
 
     # Apply scaling input file, if given
     from gurobi_modelanalyzer.scaling import read_scaling_file
